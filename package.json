@@ -1,0 +1,13 @@
+{
+  "name": "akb-weekly-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AKBの素を出すちゃんねる weekly YouTube dashboard",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check app.js && node --check data/latest.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

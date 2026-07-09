@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AKBの素を出すちゃんねる 週次ダッシュボード</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="dashboard">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">AKBの素を出すちゃんねる</p>
+          <h1>週次YouTubeレポート</h1>
+          <p id="reportMeta" class="meta"></p>
+        </div>
+        <a class="sheetLink" href="https://docs.google.com/spreadsheets/d/1fYJtcL-rqzLLe-vJmkWBQR5q9M5cxXCam5v0TAHJBZM/edit?usp=drivesdk" target="_blank" rel="noreferrer">蓄積シート</a>
+      </header>
+
+      <section class="summaryBand" aria-label="今週の結論">
+        <div>
+          <span class="sectionLabel">今週の結論</span>
+          <h2 id="weeklyHeadline"></h2>
+        </div>
+        <div id="decisionTags" class="decisionTags"></div>
+      </section>
+
+      <section id="kpiGrid" class="kpiGrid" aria-label="主要KPI"></section>
+
+      <section class="mainGrid">
+        <article class="panel focusPanel">
+          <div class="panelHeader">
+            <div>
+              <span class="sectionLabel">勝ち動画</span>
+              <h2>今週の牽引コンテンツ</h2>
+            </div>
+          </div>
+          <div id="topVideos" class="videoList"></div>
+        </article>
+
+        <article class="panel">
+          <span class="sectionLabel">再生の山</span>
+          <h2>日別ユニーク視聴者</h2>
+          <div id="dailyBars" class="barChart"></div>
+        </article>
+      </section>
+
+      <section class="splitGrid">
+        <article class="panel">
+          <span class="sectionLabel">示唆</span>
+          <h2>伸びた理由と課題</h2>
+          <div id="insightList" class="insightList"></div>
+        </article>
+
+        <article class="panel">
+          <span class="sectionLabel">次アクション</span>
+          <h2>来週の優先判断</h2>
+          <ol id="actionList" class="actionList"></ol>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panelHeader">
+          <div>
+            <span class="sectionLabel">企画案</span>
+            <h2>実行候補 3パターン</h2>
+          </div>
+        </div>
+        <div id="ideas" class="ideaGrid"></div>
+      </section>
+
+      <footer class="footer">
+        <span id="updatedAt"></span>
+        <span>毎週火曜 15:00 自動更新予定</span>
+      </footer>
+    </main>
+
+    <script src="./data/config.js"></script>
+    <script src="./data/latest.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
