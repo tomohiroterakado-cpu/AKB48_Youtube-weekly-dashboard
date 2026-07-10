@@ -170,9 +170,42 @@ async function loadData() {
     if (!response.ok) throw new Error(`Data endpoint returned ${response.status}`);
     return await response.json();
   } catch (error) {
+    console.warn("Fetch data endpoint failed. Trying script fallback.", error);
+  }
+
+  try {
+    return await loadDataViaScript(window.AKB_DATA_ENDPOINT);
+  } catch (error) {
     console.warn("Falling back to bundled dashboard data.", error);
     return data;
   }
+}
+
+function loadDataViaScript(endpoint) {
+  return new Promise((resolve, reject) => {
+    const callbackName = `akbDashboardData_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+    const script = document.createElement("script");
+    const separator = endpoint.includes("?") ? "&" : "?";
+    script.src = `${endpoint}${separator}callback=${encodeURIComponent(callbackName)}&cacheBust=${Date.now()}`;
+    script.async = true;
+
+    const cleanup = () => {
+      delete window[callbackName];
+      script.remove();
+    };
+
+    window[callbackName] = (payload) => {
+      cleanup();
+      resolve(payload);
+    };
+
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("Script data endpoint failed"));
+    };
+
+    document.head.appendChild(script);
+  });
 }
 
 function hydrateSelectedWeek(weekKey) {
