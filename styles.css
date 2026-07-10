@@ -43,6 +43,34 @@ a {
   padding: 10px 0 22px;
 }
 
+.headerControls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.weekPicker {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.weekPicker select {
+  min-width: 220px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  padding: 0 12px;
+}
+
 .eyebrow,
 .sectionLabel {
   margin: 0 0 8px;
@@ -137,6 +165,60 @@ h2 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 18px;
+}
+
+.goalPanel {
+  margin-bottom: 18px;
+}
+
+.goalGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.goalCard {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.goalTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.goalValue {
+  margin-top: 10px;
+  font-size: 25px;
+  font-weight: 900;
+}
+
+.progressTrack {
+  height: 10px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #eee5de;
+}
+
+.progressFill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--teal), var(--green));
+}
+
+.probability {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
 }
 
 .kpiCard,
@@ -369,6 +451,10 @@ h2 {
   .kpiGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .goalGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 620px) {
@@ -381,7 +467,21 @@ h2 {
     display: grid;
   }
 
+  .headerControls {
+    display: grid;
+    width: 100%;
+  }
+
+  .weekPicker select,
+  .sheetLink {
+    width: 100%;
+  }
+
   .kpiGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .goalGrid {
     grid-template-columns: 1fr;
   }
 

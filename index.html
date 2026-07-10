@@ -14,7 +14,13 @@
           <h1>週次YouTubeレポート</h1>
           <p id="reportMeta" class="meta"></p>
         </div>
-        <a class="sheetLink" href="https://docs.google.com/spreadsheets/d/1fYJtcL-rqzLLe-vJmkWBQR5q9M5cxXCam5v0TAHJBZM/edit?usp=drivesdk" target="_blank" rel="noreferrer">蓄積シート</a>
+        <div class="headerControls">
+          <label class="weekPicker">
+            <span>表示週</span>
+            <select id="weekSelect" aria-label="表示する週を選択"></select>
+          </label>
+          <a class="sheetLink" href="https://docs.google.com/spreadsheets/d/1fYJtcL-rqzLLe-vJmkWBQR5q9M5cxXCam5v0TAHJBZM/edit?usp=drivesdk" target="_blank" rel="noreferrer">蓄積シート</a>
+        </div>
       </header>
 
       <section class="summaryBand" aria-label="今週の結論">
@@ -26,6 +32,17 @@
       </section>
 
       <section id="kpiGrid" class="kpiGrid" aria-label="主要KPI"></section>
+
+      <section class="panel goalPanel" aria-label="目標進捗">
+        <div class="panelHeader">
+          <div>
+            <span class="sectionLabel">目標設定</span>
+            <h2>2027年3月末までの進捗</h2>
+          </div>
+          <p id="goalTargetDate" class="meta"></p>
+        </div>
+        <div id="goalGrid" class="goalGrid"></div>
+      </section>
 
       <section class="mainGrid">
         <article class="panel focusPanel">

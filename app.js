@@ -1,10 +1,19 @@
 const yen = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 0 });
 const oneDecimal = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 1 });
+const percent = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 1 });
 
 function formatValue(item) {
   if (item.format === "hours") return `${oneDecimal.format(item.value)}h`;
   if (item.format === "number") return yen.format(item.value);
   return item.value;
+}
+
+function formatMetric(value, format) {
+  if (value === undefined || value === null || Number.isNaN(Number(value))) return "-";
+  if (format === "hours") return `${oneDecimal.format(value)}h`;
+  if (format === "yen") return `¥${yen.format(value)}`;
+  if (format === "percent") return `${percent.format(value)}%`;
+  return yen.format(value);
 }
 
 function el(tag, className, text) {
@@ -15,6 +24,7 @@ function el(tag, className, text) {
 }
 
 function renderMeta() {
+  document.getElementById("decisionTags").replaceChildren();
   document.getElementById("reportMeta").textContent =
     `${data.week.start}〜${data.week.end} / ${data.week.status} / レポート日 ${data.week.reportDate}`;
   document.getElementById("weeklyHeadline").textContent = data.headline;
@@ -26,6 +36,7 @@ function renderMeta() {
 
 function renderKpis() {
   const grid = document.getElementById("kpiGrid");
+  grid.replaceChildren();
   data.kpis.forEach((item) => {
     const card = el("article", "kpiCard");
     card.appendChild(el("div", "kpiLabel", item.label));
@@ -35,8 +46,38 @@ function renderKpis() {
   });
 }
 
+function renderGoals() {
+  const grid = document.getElementById("goalGrid");
+  grid.replaceChildren();
+  document.getElementById("goalTargetDate").textContent =
+    data.goals?.targetDate ? `目標日 ${data.goals.targetDate}` : "";
+
+  const items = data.goals?.items || [];
+  if (!items.length) {
+    grid.appendChild(el("p", "kpiNote", "目標設定はスプレッドシートの「目標設定」タブから追加できます。"));
+    return;
+  }
+
+  items.forEach((goal) => {
+    const card = el("article", "goalCard");
+    const top = el("div", "goalTop");
+    top.appendChild(el("span", "", goal.label));
+    top.appendChild(el("span", "", `目標 ${formatMetric(goal.target, goal.format)}`));
+    card.appendChild(top);
+    card.appendChild(el("div", "goalValue", `${formatMetric(goal.current, goal.format)} / ${percent.format(goal.progress || 0)}%`));
+    const track = el("div", "progressTrack");
+    const fill = el("div", "progressFill");
+    fill.style.width = `${Math.min(goal.progress || 0, 100)}%`;
+    track.appendChild(fill);
+    card.appendChild(track);
+    card.appendChild(el("div", "probability", `達成見込み: ${percent.format(goal.probability || 0)}% / 必要ペース: ${formatMetric(goal.requiredWeeklyPace, goal.format)}/週`));
+    grid.appendChild(card);
+  });
+}
+
 function renderVideos() {
   const list = document.getElementById("topVideos");
+  list.replaceChildren();
   data.topVideos.forEach((video) => {
     const card = el("a", "videoCard");
     card.href = video.url;
@@ -69,12 +110,13 @@ function renderVideos() {
 }
 
 function renderDailyBars() {
-  const max = Math.max(...data.dailyUnique.map((d) => d.value));
   const chart = document.getElementById("dailyBars");
+  chart.replaceChildren();
   if (!data.dailyUnique.length) {
     chart.appendChild(el("p", "kpiNote", "日別データは次回CSV反映後に表示します。"));
     return;
   }
+  const max = Math.max(...data.dailyUnique.map((d) => d.value));
   data.dailyUnique.forEach((item) => {
     const row = el("div", "barRow");
     row.appendChild(el("span", "", item.date));
@@ -90,6 +132,7 @@ function renderDailyBars() {
 
 function renderInsights() {
   const list = document.getElementById("insightList");
+  list.replaceChildren();
   data.insights.forEach((item) => {
     const node = el("div", "insight");
     node.innerHTML = `<strong>${item.label}</strong><br>${item.text}`;
@@ -97,11 +140,13 @@ function renderInsights() {
   });
 
   const actions = document.getElementById("actionList");
+  actions.replaceChildren();
   data.actions.forEach((action) => actions.appendChild(el("li", "", action)));
 }
 
 function renderIdeas() {
   const grid = document.getElementById("ideas");
+  grid.replaceChildren();
   data.ideas.forEach((idea) => {
     const card = el("article", "ideaCard");
     card.appendChild(el("span", "ideaPriority", `優先度 ${idea.priority}`));
@@ -115,6 +160,7 @@ function renderIdeas() {
 }
 
 let data = window.AKB_WEEKLY_DATA;
+let allWeeks = [];
 
 async function loadData() {
   if (!window.AKB_DATA_ENDPOINT) return data;
@@ -129,12 +175,62 @@ async function loadData() {
   }
 }
 
-loadData().then((loadedData) => {
-  data = loadedData;
+function hydrateSelectedWeek(weekKey) {
+  const selected = allWeeks.find((week) => week.key === weekKey) || allWeeks[0];
+  if (!selected) return;
+  data = {
+    ...selected,
+    source: data.source
+  };
+  renderAll();
+}
+
+function renderWeekSelect() {
+  const select = document.getElementById("weekSelect");
+  select.replaceChildren();
+  allWeeks.forEach((week) => {
+    const option = el("option", "", `${week.week.start}〜${week.week.end}`);
+    option.value = week.key;
+    select.appendChild(option);
+  });
+  select.value = data.key || allWeeks[0]?.key || "";
+  select.onchange = () => hydrateSelectedWeek(select.value);
+}
+
+function renderAll() {
   renderMeta();
   renderKpis();
+  renderGoals();
   renderVideos();
   renderDailyBars();
   renderInsights();
   renderIdeas();
+}
+
+function normalizeLoadedData(loadedData) {
+  const source = loadedData.source || {};
+  const rawWeeks = loadedData.weeks?.length ? loadedData.weeks : [loadedData];
+  const weeks = rawWeeks
+    .filter((week) => week && week.week)
+    .map((week, index) => ({
+      ...week,
+      key: week.key || `${week.week.start}_${week.week.end}` || `week-${index + 1}`
+    }))
+    .sort((a, b) => String(b.week.start).localeCompare(String(a.week.start)));
+
+  return {
+    source,
+    weeks
+  };
+}
+
+loadData().then((loadedData) => {
+  const normalized = normalizeLoadedData(loadedData);
+  allWeeks = normalized.weeks;
+  data = {
+    ...allWeeks[0],
+    source: normalized.source
+  };
+  renderWeekSelect();
+  renderAll();
 });
