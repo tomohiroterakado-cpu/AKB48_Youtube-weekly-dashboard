@@ -108,7 +108,7 @@ function buildWeekData_(weeklyRow, weekIndex, allWeeks, videos, ideas, daily, go
   const rawWeekVideos = csvRows.filter((row) => toDateText_(row['週開始日']) === weekStart);
   const longFormVideos = (rawWeekVideos.length ? rawWeekVideos : allMatchingVideos).filter(isLongFormVideo_);
   const longFormLikesAverage = average_(longFormVideos.map((row) => firstNumber_(row, ['高評価数'])));
-  const longFormCommentsAverage = average_(longFormVideos.map((row) => firstNumber_(row, ['コメントの追加回数', 'コメント数'])));
+  const membershipDelta = membershipDelta_(weeklyRow, allWeeks, weekIndex);
 
   const matchingIdeas = ideas
     .filter((row) => toDateText_(row['週開始日']) === weekStart)
@@ -137,13 +137,13 @@ function buildWeekData_(weeklyRow, weekIndex, allWeeks, videos, ideas, daily, go
     goals: buildGoals_(goalSettings, allWeeks, weekIndex),
     kpis: [
       { label: '週間視聴回数', value: Number(weeklyRow['総視聴回数'] || 0), format: 'number', note: '目標: 累計視聴回数' },
-      { label: '登録者増加数', value: Number(weeklyRow['登録者増加数'] || 0), format: 'number', note: '目標: チャンネル登録数' },
+      { label: 'チャンネル登録者増加数', value: Number(weeklyRow['登録者増加数'] || 0), format: 'number', note: '目標: チャンネル登録数' },
+      { label: 'メンバーシップ増減数', value: membershipDelta.value, format: 'number', note: membershipDelta.note },
       { label: 'ユニーク視聴者', value: Number(weeklyRow['ユニーク視聴者数'] || 0), format: 'number', note: '週次の到達人数' },
       { label: '新しい視聴者数', value: Number(weeklyRow['新しい視聴者数'] || 0), format: 'number', note: '目標: 新規視聴者' },
       { label: 'リピーター', value: Number(weeklyRow['リピーター'] || 0), format: 'number', note: '目標: 継続視聴者' },
       { label: 'インプレッション', value: Number(weeklyRow['インプレッション数'] || 0), format: 'number', note: `CTR ${weeklyRow['インプレッションCTR'] || ''}%` },
-      { label: '長尺平均高評価', value: round1_(longFormLikesAverage), format: 'number', note: `${longFormVideos.length}本平均` },
-      { label: '長尺平均コメント', value: round1_(longFormCommentsAverage), format: 'number', note: `${longFormVideos.length}本平均` }
+      { label: '長尺平均高評価', value: round1_(longFormLikesAverage), format: 'number', note: `${longFormVideos.length}本平均` }
     ],
     dailyUnique,
     topVideos: matchingVideos.map((row) => ({
@@ -198,6 +198,57 @@ function average_(values) {
     .filter((value) => !Number.isNaN(value) && value > 0);
   if (!numbers.length) return 0;
   return numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
+}
+
+function membershipDelta_(weeklyRow, allWeeks, weekIndex) {
+  const explicitDelta = numberFromRow_(weeklyRow, [
+    'メンバーシップ増減数',
+    'メンバーシップ増減',
+    '手入力_メンバーシップ増減数'
+  ]);
+  if (explicitDelta !== null) {
+    return { value: explicitDelta, note: '手入力' };
+  }
+
+  const current = membershipCount_(weeklyRow);
+  if (current === null) {
+    return { value: 0, note: '締日時点未入力' };
+  }
+
+  const previous = previousMembershipCount_(allWeeks, weekIndex);
+  if (previous === null) {
+    return { value: 0, note: '比較週なし' };
+  }
+
+  return {
+    value: current - previous,
+    note: `前週比 / 現在 ${formatNumber_(current)}人`
+  };
+}
+
+function previousMembershipCount_(allWeeks, weekIndex) {
+  for (let index = weekIndex - 1; index >= 0; index -= 1) {
+    const value = membershipCount_(allWeeks[index]);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
+function membershipCount_(row) {
+  return numberFromRow_(row, [
+    '手入力_メンバーシップ会員数_締日時点',
+    'メンバーシップ会員数',
+    'メンバーシップ会員数_締日時点'
+  ]);
+}
+
+function numberFromRow_(row, keys) {
+  for (const key of keys) {
+    if (row[key] === undefined || row[key] === null || row[key] === '') continue;
+    const value = Number(String(row[key]).replace(/,/g, ''));
+    if (!Number.isNaN(value)) return value;
+  }
+  return null;
 }
 
 function latestWeek_(data) {
