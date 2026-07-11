@@ -95,6 +95,7 @@ function renderVideos() {
     body.appendChild(el("div", "videoTitle", video.title));
     const meta = el("div", "videoMeta");
     [
+      video.publishDate ? `公開日 ${video.publishDate}` : "",
       video.genre,
       `${yen.format(video.views)}回`,
       `${yen.format(video.likes)}高評価`,
@@ -102,7 +103,7 @@ function renderVideos() {
       `CTR ${video.ctr}`,
       video.avg,
       video.memo
-    ].forEach((text) => meta.appendChild(el("span", "metricPill", text)));
+    ].filter(Boolean).forEach((text) => meta.appendChild(el("span", "metricPill", text)));
     body.appendChild(meta);
     card.appendChild(body);
     list.appendChild(card);
