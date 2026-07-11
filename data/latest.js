@@ -24,52 +24,61 @@ window.AKB_WEEKLY_DATA = {
         targetDate: "2027-03-31",
         items: [
           {
-            label: "累計視聴回数",
-            current: 493524,
-            target: 20000000,
-            progress: 2.5,
-            probability: 97.3,
-            requiredWeeklyPace: 507148,
+            label: "チャンネル登録数",
+            current: 98944,
+            target: 120000,
+            progress: 82.5,
+            probability: 100,
+            requiredWeeklyPace: 540,
             format: "number"
           },
           {
-            label: "累計再生時間",
-            current: 51452.738,
+            label: "視聴回数",
+            current: 9234877,
+            target: 15000000,
+            progress: 61.6,
+            probability: 100,
+            requiredWeeklyPace: 147824,
+            format: "number"
+          },
+          {
+            label: "新しい視聴者数",
+            current: 692986,
             target: 1500000,
-            progress: 3.4,
+            progress: 46.2,
             probability: 100,
-            requiredWeeklyPace: 37608,
-            format: "hours"
-          },
-          {
-            label: "累計登録者増加",
-            current: 766,
-            target: 30000,
-            progress: 2.6,
-            probability: 100,
-            requiredWeeklyPace: 760,
+            requiredWeeklyPace: 20693,
             format: "number"
           },
           {
-            label: "累計ユニーク視聴者",
-            current: 108864,
-            target: 4000000,
-            progress: 2.7,
+            label: "リピーター",
+            current: 386374,
+            target: 1800000,
+            progress: 21.5,
             probability: 100,
-            requiredWeeklyPace: 101069,
+            requiredWeeklyPace: 36247,
+            format: "number"
+          },
+          {
+            label: "メンバーシップ会員数",
+            current: 2160,
+            target: 1500,
+            progress: 144,
+            probability: 100,
+            requiredWeeklyPace: 0,
             format: "number"
           }
         ]
       },
       kpis: [
-        { label: "週間視聴回数", value: 493524, format: "number", note: "目標: 累計視聴回数" },
-        { label: "登録者増加数", value: 766, format: "number", note: "目標: チャンネル登録数" },
+        { label: "週間視聴回数", value: 492020, format: "number", note: "目標: 累計視聴回数" },
+        { label: "チャンネル登録者増加数", value: 766, format: "number", note: "目標: チャンネル登録数" },
+        { label: "メンバーシップ増減数", value: 0, format: "number", note: "比較週なし" },
         { label: "ユニーク視聴者", value: 108864, format: "number", note: "週次の到達人数" },
         { label: "新しい視聴者数", value: 24259, format: "number", note: "目標: 新規視聴者" },
         { label: "リピーター", value: 84530, format: "number", note: "目標: 継続視聴者" },
-        { label: "インプレッション", value: 6517026, format: "number", note: "CTR 4.0%" },
-        { label: "長尺平均高評価", value: 1343, format: "number", note: "3本平均" },
-        { label: "長尺平均コメント", value: 162.3, format: "number", note: "3本平均" }
+        { label: "インプレッション", value: 6510509, format: "number", note: "CTR 4.0%" },
+        { label: "長尺平均高評価", value: 1343, format: "number", note: "3本平均" }
       ],
       dailyUnique: [
         { date: "6/29", value: 21358 },
