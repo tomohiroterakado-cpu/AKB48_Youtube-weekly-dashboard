@@ -83,6 +83,7 @@ function buildDashboardData_() {
     .sort((a, b) => dateTime_(a['週開始日']) - dateTime_(b['週開始日']));
   const videos = rowsByHeader_(spreadsheet.getSheetByName('自チャンネル動画'), 3);
   const ideas = rowsByHeader_(spreadsheet.getSheetByName('企画案'), 3);
+  const csvRows = rowsByHeader_(spreadsheet.getSheetByName('CSV_貼付用'), 3);
   const daily = rowsByHeader_(spreadsheet.getSheetByName('CSV_日別'), 3);
   const goalSettings = readGoals_(spreadsheet.getSheetByName('目標設定'));
 
@@ -93,16 +94,21 @@ function buildDashboardData_() {
       updatedAt: `${Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm')} JST`,
       updateCadence: '毎週火曜 15:00'
     },
-    weeks: weekly.map((row, index) => buildWeekData_(row, index, weekly, videos, ideas, daily, goalSettings))
+    weeks: weekly.map((row, index) => buildWeekData_(row, index, weekly, videos, ideas, daily, goalSettings, csvRows))
   };
 }
 
-function buildWeekData_(weeklyRow, weekIndex, allWeeks, videos, ideas, daily, goalSettings) {
+function buildWeekData_(weeklyRow, weekIndex, allWeeks, videos, ideas, daily, goalSettings, csvRows) {
   const weekStart = toDateText_(weeklyRow['週開始日']);
-  const matchingVideos = videos
-    .filter((row) => toDateText_(row['週開始日']) === weekStart)
+  const allMatchingVideos = videos
+    .filter((row) => toDateText_(row['週開始日']) === weekStart);
+  const matchingVideos = allMatchingVideos
     .sort((a, b) => Number(b['再生数'] || 0) - Number(a['再生数'] || 0))
     .slice(0, 4);
+  const rawWeekVideos = csvRows.filter((row) => toDateText_(row['週開始日']) === weekStart);
+  const longFormVideos = (rawWeekVideos.length ? rawWeekVideos : allMatchingVideos).filter(isLongFormVideo_);
+  const longFormLikesAverage = average_(longFormVideos.map((row) => firstNumber_(row, ['高評価数'])));
+  const longFormCommentsAverage = average_(longFormVideos.map((row) => firstNumber_(row, ['コメントの追加回数', 'コメント数'])));
 
   const matchingIdeas = ideas
     .filter((row) => toDateText_(row['週開始日']) === weekStart)
@@ -130,14 +136,14 @@ function buildWeekData_(weeklyRow, weekIndex, allWeeks, videos, ideas, daily, go
     decisions: splitActions_(weeklyRow['次アクション']),
     goals: buildGoals_(goalSettings, allWeeks, weekIndex),
     kpis: [
-      { label: '総視聴回数', value: Number(weeklyRow['総視聴回数'] || 0), format: 'number', note: 'CSV合計行ベース' },
-      { label: '総再生時間', value: Number(weeklyRow['総再生時間（時間）'] || 0), format: 'hours', note: '長尺が牽引' },
-      { label: '平均視聴時間', value: String(weeklyRow['平均視聴時間'] || ''), format: 'text', note: '週次平均' },
-      { label: '登録者増加数', value: Number(weeklyRow['登録者増加数'] || 0), format: 'number', note: '全体合計' },
-      { label: 'ユニーク視聴者', value: Number(weeklyRow['ユニーク視聴者数'] || 0), format: 'number', note: '合計行を正として採用' },
+      { label: '週間視聴回数', value: Number(weeklyRow['総視聴回数'] || 0), format: 'number', note: '目標: 累計視聴回数' },
+      { label: '登録者増加数', value: Number(weeklyRow['登録者増加数'] || 0), format: 'number', note: '目標: チャンネル登録数' },
+      { label: 'ユニーク視聴者', value: Number(weeklyRow['ユニーク視聴者数'] || 0), format: 'number', note: '週次の到達人数' },
+      { label: '新しい視聴者数', value: Number(weeklyRow['新しい視聴者数'] || 0), format: 'number', note: '目標: 新規視聴者' },
+      { label: 'リピーター', value: Number(weeklyRow['リピーター'] || 0), format: 'number', note: '目標: 継続視聴者' },
       { label: 'インプレッション', value: Number(weeklyRow['インプレッション数'] || 0), format: 'number', note: `CTR ${weeklyRow['インプレッションCTR'] || ''}%` },
-      { label: '高評価数', value: Number(weeklyRow['高評価数'] || 0), format: 'number', note: '熱量の基礎値' },
-      { label: 'コメント追加', value: Number(weeklyRow['コメント追加回数'] || 0), format: 'number', note: '会話量の基礎値' }
+      { label: '長尺平均高評価', value: round1_(longFormLikesAverage), format: 'number', note: `${longFormVideos.length}本平均` },
+      { label: '長尺平均コメント', value: round1_(longFormCommentsAverage), format: 'number', note: `${longFormVideos.length}本平均` }
     ],
     dailyUnique,
     topVideos: matchingVideos.map((row) => ({
@@ -171,6 +177,27 @@ function buildWeekData_(weeklyRow, weekIndex, allWeeks, videos, ideas, daily, go
 
 function fallbackDailyUnique_(weekStart) {
   return FALLBACK_DAILY_UNIQUE_BY_WEEK[weekStart] || [];
+}
+
+function isLongFormVideo_(row) {
+  const genre = String(row['企画ジャンル'] || row['企画ジャンル（任意）'] || '');
+  return !/shorts/i.test(genre);
+}
+
+function firstNumber_(row, keys) {
+  for (const key of keys) {
+    const value = Number(row[key] || 0);
+    if (!Number.isNaN(value) && value > 0) return value;
+  }
+  return 0;
+}
+
+function average_(values) {
+  const numbers = values
+    .map((value) => Number(value || 0))
+    .filter((value) => !Number.isNaN(value) && value > 0);
+  if (!numbers.length) return 0;
+  return numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
 }
 
 function latestWeek_(data) {
