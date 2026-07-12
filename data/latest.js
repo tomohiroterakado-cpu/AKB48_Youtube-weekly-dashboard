@@ -73,13 +73,17 @@ window.AKB_WEEKLY_DATA = {
       kpis: [
         { label: "週間視聴回数", value: 492020, format: "number", note: "目標: 累計視聴回数" },
         { label: "チャンネル登録者増加数", value: 766, format: "number", note: "目標: チャンネル登録数" },
-        { label: "メンバーシップ増減数", value: 0, format: "number", note: "比較週なし" },
+        { label: "メンバーシップ増減数", value: 12, format: "number", note: "手入力" },
         { label: "ユニーク視聴者", value: 108864, format: "number", note: "週次の到達人数" },
         { label: "新しい視聴者数", value: 24259, format: "number", note: "目標: 新規視聴者" },
         { label: "リピーター", value: 84530, format: "number", note: "目標: 継続視聴者" },
         { label: "インプレッション", value: 6510509, format: "number", note: "CTR 4.0%" },
         { label: "長尺平均高評価", value: 1343, format: "number", note: "3本平均" }
       ],
+      trend: {
+        note: "2週目以降に自動表示",
+        sections: []
+      },
       dailyUnique: [
         { date: "6/29", value: 21358 },
         { date: "6/30", value: 17941 },
@@ -94,6 +98,7 @@ window.AKB_WEEKLY_DATA = {
           id: "SHuEIDBDMT4",
           title: "【AKB48ワールドカップ】負けられない戦いがここにもある！めんこいJAPAN vs フレッシュJAPAN",
           url: "https://www.youtube.com/watch?v=SHuEIDBDMT4",
+          publishDate: "7/4",
           genre: "長尺/対抗戦",
           views: 39057,
           likes: 1235,
@@ -106,6 +111,7 @@ window.AKB_WEEKLY_DATA = {
           id: "nFhCOxoCPd0",
           title: "「結婚したくない」1位 気まずさMAXのあいずき",
           url: "https://www.youtube.com/watch?v=nFhCOxoCPd0",
+          publishDate: "7/4",
           genre: "Shorts/切り抜き",
           views: 35480,
           likes: 751,
@@ -118,6 +124,7 @@ window.AKB_WEEKLY_DATA = {
           id: "8iPtMk1EVvU",
           title: "AKB48バンド(仮)からのお知らせ",
           url: "https://www.youtube.com/watch?v=8iPtMk1EVvU",
+          publishDate: "7/3",
           genre: "発表/音楽",
           views: 28517,
           likes: 1511,
@@ -130,6 +137,7 @@ window.AKB_WEEKLY_DATA = {
           id: "qUTB1ldwPqY",
           title: "【コストコ7万円分】運動会MVPのご褒美でゆなあづが買い放題したら楽しすぎた！！",
           url: "https://www.youtube.com/watch?v=qUTB1ldwPqY",
+          publishDate: "7/5",
           genre: "バラエティ/ご褒美",
           views: 24910,
           likes: 1283,
