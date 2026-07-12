@@ -45,7 +45,7 @@ flowchart LR
 - 低: それ未満
 - 判定不可: 必要データなし
 
-閾値は将来 `system_settings` へ移行します。
+閾値は `lib/analysis-config.js` で変更できます。将来は管理画面の `system_settings` へ移行します。
 
 ## 永続性比較
 

@@ -159,7 +159,8 @@ const server = http.createServer(async (req, res) => {
       }
 
       const ext = path.extname(filePath);
-      const cacheControl = filePath.endsWith("latest.js")
+      // 管理画面のJS/CSSが古いまま残ると、CSV取込画面の更新を誤認しやすい。
+      const cacheControl = [".html", ".css", ".js"].includes(ext)
         ? "no-cache"
         : "public, max-age=300";
 

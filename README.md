@@ -84,6 +84,8 @@ npm run check
 
 ユニットテストはCSV引用符、列名揺れ、必須列不足、説明行除外、重複防止、履歴保存、確認済み保護、信頼度を対象にしています。
 
+信頼度の閾値は `lib/analysis-config.js` にまとめています。運用方針の変更時は、ここだけを変更してテスト後にデプロイしてください。
+
 ## Cloud Runデプロイ
 
 GitHubの `main` へのpushでCloud Buildトリガーが起動し、Artifact Registryへ保存後、Cloud Run `akb-weekly-dashboard` を更新します。
