@@ -7,7 +7,92 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main class="dashboard">
+    <header class="directorHeader">
+      <div class="directorBrand">
+        <span>AKB YouTube</span>
+        <strong>AI Director</strong>
+      </div>
+      <nav class="directorNav" aria-label="メインナビゲーション">
+        <button type="button" data-route="home">ホーム</button>
+        <button type="button" data-route="upload">CSVアップロード</button>
+        <button type="button" data-route="review">未確認動画 <span id="reviewBadge" class="navBadge" hidden></span></button>
+        <button type="button" data-route="weekly">週次レポート</button>
+        <button type="button" data-route="director">AI Director</button>
+        <button type="button" data-route="masters">マスタ管理</button>
+      </nav>
+    </header>
+
+    <main id="homeView" class="directorPage" data-director-view="home">
+      <div class="directorPageHeader">
+        <div>
+          <p class="eyebrow">毎週の作業状況</p>
+          <h1>次にやることが、ひと目でわかる。</h1>
+        </div>
+        <button id="refreshHome" class="secondaryButton" type="button">更新</button>
+      </div>
+      <section id="workflowStatus" class="workflowGrid" aria-live="polite"></section>
+      <section class="directorPanel">
+        <div class="panelHeader">
+          <div><span class="sectionLabel">3ステップ運用</span><h2>今週の進め方</h2></div>
+        </div>
+        <ol class="threeSteps">
+          <li><button type="button" data-route="upload"><strong>1</strong><span>CSVをアップロード</span></button></li>
+          <li><button type="button" data-route="review"><strong>2</strong><span>新規動画だけ確認</span></button></li>
+          <li><button type="button" data-route="director"><strong>3</strong><span>AIレポートを確認</span></button></li>
+        </ol>
+      </section>
+      <section id="homeWarnings" class="warningList"></section>
+    </main>
+
+    <main id="uploadView" class="directorPage" data-director-view="upload" hidden>
+      <div class="directorPageHeader">
+        <div><p class="eyebrow">STEP 1</p><h1>CSVアップロード</h1><p class="meta">同一ファイルはスキップし、更新版は履歴を残して最新版として保存します。</p></div>
+      </div>
+      <section class="directorPanel uploadPanel">
+        <div class="formGrid">
+          <label><span>対象期間の開始日</span><input id="periodStart" type="date" required></label>
+          <label><span>対象期間の終了日</span><input id="periodEnd" type="date" required></label>
+          <label><span>対象チャンネル</span><input id="channelName" value="AKBの素を出すちゃんねる" required></label>
+          <label><span>管理用トークン</span><input id="adminToken" type="password" autocomplete="current-password" placeholder="Cloud Runで設定したトークン"></label>
+        </div>
+        <label class="fileDrop" for="csvFile">
+          <input id="csvFile" type="file" accept=".csv,text/csv">
+          <strong>表データ.csvを選択</strong>
+          <span>UTF-8・Shift_JISの確認結果と列名エラーを取込前に表示します</span>
+        </label>
+        <div class="commandRow">
+          <button id="previewImport" class="primaryButton" type="button">取込内容を確認</button>
+        </div>
+      </section>
+      <section id="importResult" class="directorPanel" hidden aria-live="polite"></section>
+    </main>
+
+    <main id="reviewView" class="directorPage" data-director-view="review" hidden>
+      <div class="directorPageHeader">
+        <div><p class="eyebrow">STEP 2</p><h1>未確認動画</h1><p class="meta">新規動画だけ表示します。確認済み動画は翌週に再入力しません。</p></div>
+        <div class="commandRow"><button id="selectAllReviews" class="secondaryButton" type="button">すべて選択</button><button id="confirmSelected" class="primaryButton" type="button">選択した動画を確認済みにする</button></div>
+      </div>
+      <div class="reviewFilters"><label><input id="lowConfidenceOnly" type="checkbox"> 信頼度が低い候補だけ表示</label></div>
+      <section id="reviewList" class="reviewList" aria-live="polite"></section>
+    </main>
+
+    <main id="mastersView" class="directorPage" data-director-view="masters" hidden>
+      <div class="directorPageHeader"><div><p class="eyebrow">設定</p><h1>マスタ管理</h1><p class="meta">出演メンバーと企画ジャンルは後から追加・変更できます。</p></div></div>
+      <div class="masterGrid">
+        <section class="directorPanel"><h2>メンバー</h2><form id="memberForm" class="inlineForm"><input name="name" placeholder="メンバー名" required><button class="primaryButton" type="submit">追加</button></form><div id="memberList" class="chipList"></div></section>
+        <section class="directorPanel"><h2>企画ジャンル</h2><form id="categoryForm" class="inlineForm"><input name="name" placeholder="ジャンル名" required><button class="primaryButton" type="submit">追加</button></form><div id="categoryList" class="chipList"></div></section>
+      </div>
+    </main>
+
+    <main id="directorView" class="directorPage" data-director-view="director" hidden>
+      <div class="directorPageHeader">
+        <div><p class="eyebrow">STEP 3</p><h1>AI Director</h1><p class="meta">事実・集計・AI解釈・企画案を混同せずに表示します。</p></div>
+        <button id="refreshDirector" class="secondaryButton" type="button">再集計</button>
+      </div>
+      <section id="directorReport" class="directorPanel" aria-live="polite"></section>
+    </main>
+
+    <main id="weeklyView" class="dashboard" data-director-view="weekly" hidden>
       <header class="topbar">
         <div>
           <p class="eyebrow">AKBの素を出すちゃんねる</p>
@@ -106,5 +191,6 @@
     <script src="./data/config.js"></script>
     <script src="./data/latest.js"></script>
     <script src="./app.js"></script>
+    <script src="./director.js"></script>
   </body>
 </html>
