@@ -1,4 +1,4 @@
-const directorState = { previewPayload: null, reviewVideos: [], masters: { members: [], categories: [] } };
+const directorState = { previewPayload: null, reviewVideos: [], videos: [], selectedVideoId: "", masters: { members: [], categories: [] } };
 
 function directorEl(tag, className, text) {
   const node = document.createElement(tag);
@@ -8,7 +8,7 @@ function directorEl(tag, className, text) {
 }
 
 function adminHeaders() {
-  return { "Content-Type": "application/json", "X-Admin-Token": sessionStorage.getItem("akbAdminToken") || "" };
+  return { "Content-Type": "application/json", "X-Admin-Token": document.getElementById("adminToken")?.value || "" };
 }
 
 async function api(path, options = {}) {
@@ -99,8 +99,6 @@ async function readSelectedCsv() {
     csvText
   };
   if (!payload.periodStart || !payload.periodEnd) throw new Error("対象期間を入力してください。");
-  const token = document.getElementById("adminToken").value;
-  if (token) sessionStorage.setItem("akbAdminToken", token);
   return payload;
 }
 
@@ -125,6 +123,7 @@ async function previewUpload() {
     result.appendChild(grid);
     if (Object.keys(preview.missingCounts || {}).length) result.appendChild(directorEl("p", "warningItem", `欠損項目: ${Object.entries(preview.missingCounts).map(([key, count]) => `${key} ${count}件`).join("、")}`));
     if (preview.unknownHeaders?.length) result.appendChild(directorEl("p", "infoItem", `未使用列: ${preview.unknownHeaders.join("、")}`));
+    if (preview.recoveryImportId) result.appendChild(directorEl("p", "warningItem", "前回のSheets保存が途中で中断されています。同じ取込IDで安全に再実行します。"));
     if (!preview.duplicate) {
       const policy = directorEl("label", "policyControl");
       policy.appendChild(directorEl("span", "", "同じ期間・動画がある場合"));
@@ -240,13 +239,79 @@ async function confirmSelected() {
   } catch (error) { alert(error.message); }
 }
 
+async function reclassifyReviews() {
+  const selectedIds = [...document.querySelectorAll(".reviewSelect:checked")].map((input) => input.value);
+  try {
+    const result = await api("/api/videos/reclassify", { method: "POST", headers: adminHeaders(), body: JSON.stringify({ videoIds: selectedIds }) });
+    alert(`${result.reclassified}本の未確認動画を再判定しました。確認済みの属性は変更していません。`);
+    await loadReviews();
+  } catch (error) { alert(error.message); }
+}
+
 async function loadMasters() {
   try {
     const payload = await api("/api/videos");
+    directorState.videos = payload.videos;
     directorState.masters = { members: payload.members, categories: payload.categories };
     const memberList = document.getElementById("memberList"); memberList.replaceChildren(); payload.members.forEach((item) => memberList.appendChild(directorEl("span", "masterChip", item.name)));
     const categoryList = document.getElementById("categoryList"); categoryList.replaceChildren(); payload.categories.forEach((item) => categoryList.appendChild(directorEl("span", "masterChip", item.name)));
+    renderVideoAttributeEditor();
   } catch (error) { document.getElementById("memberList").textContent = error.message; }
+}
+
+function editorField(label, field, value, arrayValue = false) {
+  const labelNode = directorEl("label", "reviewField");
+  labelNode.appendChild(directorEl("span", "", label));
+  const input = field === "notes" ? directorEl("textarea", "") : directorEl("input", "");
+  input.value = arrayValue ? (value || []).join("、") : (value || "");
+  input.dataset.attributeField = field;
+  labelNode.appendChild(input);
+  return labelNode;
+}
+
+function renderVideoAttributeEditor() {
+  const container = document.getElementById("videoAttributeEditor");
+  container.replaceChildren();
+  if (!directorState.videos.length) { container.appendChild(directorEl("p", "emptyState", "CSV取込後に動画属性を編集できます。")); return; }
+  if (!directorState.selectedVideoId || !directorState.videos.some((video) => video.videoId === directorState.selectedVideoId)) directorState.selectedVideoId = directorState.videos[0].videoId;
+  const selectLabel = directorEl("label", "reviewField"); selectLabel.appendChild(directorEl("span", "", "対象動画"));
+  const select = directorEl("select", ""); select.id = "videoAttributeSelect";
+  directorState.videos.forEach((video) => { const option = directorEl("option", "", `${video.title} (${video.videoId})`); option.value = video.videoId; select.appendChild(option); });
+  select.value = directorState.selectedVideoId;
+  select.addEventListener("change", () => { directorState.selectedVideoId = select.value; renderVideoAttributeEditor(); });
+  selectLabel.appendChild(select); container.appendChild(selectLabel);
+  const video = directorState.videos.find((item) => item.videoId === directorState.selectedVideoId);
+  const fields = directorEl("div", "reviewFieldGrid");
+  fields.append(
+    editorField("動画形式", "format", video.format),
+    editorField("企画ジャンル", "genre", video.genre),
+    editorField("サブジャンル", "subgenre", video.subgenre),
+    editorField("出演メンバー（、区切り）", "members", video.members, true),
+    editorField("ゲスト（、区切り）", "guests", video.guests, true),
+    editorField("企画タグ（、区切り）", "tags", video.tags, true),
+    editorField("コラボ", "collaboration", video.collaboration),
+    editorField("タイトル訴求", "titleAppeal", video.titleAppeal),
+    editorField("想定ターゲット", "targetAudience", video.targetAudience),
+    editorField("季節イベント", "seasonalEvent", video.seasonalEvent),
+    editorField("制作コスト", "productionCost", video.productionCost),
+    editorField("撮影難易度", "shootingDifficulty", video.shootingDifficulty),
+    editorField("備考", "notes", video.notes)
+  );
+  container.appendChild(fields);
+  const save = directorEl("button", "primaryButton", "動画属性を保存"); save.type = "button"; save.addEventListener("click", saveVideoAttributes); container.appendChild(save);
+}
+
+async function saveVideoAttributes() {
+  const edits = {};
+  document.querySelectorAll("[data-attribute-field]").forEach((input) => {
+    const field = input.dataset.attributeField;
+    edits[field] = ["members", "guests", "tags"].includes(field) ? input.value.split(/[、,]/).map((item) => item.trim()).filter(Boolean) : input.value.trim();
+  });
+  try {
+    await api("/api/videos/attributes", { method: "POST", headers: adminHeaders(), body: JSON.stringify({ videoId: directorState.selectedVideoId, edits }) });
+    await loadMasters();
+    alert("動画属性を保存しました。");
+  } catch (error) { alert(error.message); }
 }
 
 async function addMaster(event, path) {
@@ -262,6 +327,7 @@ document.getElementById("refreshHome").addEventListener("click", loadHome);
 document.getElementById("refreshDirector").addEventListener("click", loadDirectorReport);
 document.getElementById("previewImport").addEventListener("click", previewUpload);
 document.getElementById("confirmSelected").addEventListener("click", confirmSelected);
+document.getElementById("reclassifyReviews").addEventListener("click", reclassifyReviews);
 document.getElementById("selectAllReviews").addEventListener("click", () => document.querySelectorAll(".reviewSelect").forEach((input) => { input.checked = true; }));
 document.getElementById("lowConfidenceOnly").addEventListener("change", renderReviews);
 document.getElementById("memberForm").addEventListener("submit", (event) => addMaster(event, "/api/members"));

@@ -60,7 +60,7 @@ flowchart LR
 
 - 読取サイトは現状公開。数値の公開範囲は別途方針決定が必要。
 - 書込APIは `ADMIN_ACCESS_TOKEN` がないと503、誤りなら401。
-- トークンはHTTPSで送り、ブラウザのsessionStorageにのみ保持する。
+- トークンはHTTPSで送り、ブラウザの入力欄にある間だけ使用する。ブラウザ保存領域には保持しない。
 - APIキー・OAuth JSONはGit除外。
 - 本番SheetsはCloud Run実行サービスアカウントへファイル単位で共有する。
 - 将来はGoogle Workspaceログインへ置換することを推奨する。

@@ -186,7 +186,9 @@ function renderInsights() {
   list.replaceChildren();
   data.insights.forEach((item) => {
     const node = el("div", "insight");
-    node.innerHTML = `<strong>${item.label}</strong><br>${item.text}`;
+    node.appendChild(el("strong", "", item.label));
+    node.appendChild(document.createElement("br"));
+    node.appendChild(document.createTextNode(item.text));
     list.appendChild(node);
   });
 

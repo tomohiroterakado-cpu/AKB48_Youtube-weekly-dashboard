@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { mapYouTubeCsv, parseCsv } = require("../lib/csv");
+const { durationSecondsValue, mapYouTubeCsv, parseCsv } = require("../lib/csv");
 
 test("quoted commas and BOM are parsed", () => {
   const rows = parseCsv('\uFEFFコンテンツ,動画のタイトル\nabc,"企画, 前編"\n');
@@ -23,4 +23,9 @@ test("YouTube footer note is not treated as a video", () => {
   const result = mapYouTubeCsv("動画ID,動画タイトル\nabcdefghijk,動画\n上位 500 件の結果を表示しています,\n");
   assert.equal(result.videos.length, 1);
   assert.equal(result.ignoredRowCount, 1);
+});
+
+test("YouTube duration strings are converted to seconds", () => {
+  assert.equal(durationSecondsValue("0:12:34"), 754);
+  assert.equal(durationSecondsValue("1:02"), 62);
 });

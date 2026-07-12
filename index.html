@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AKBの素を出すちゃんねる 週次ダッシュボード</title>
+    <title>AKB YouTube AI Director</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -20,6 +20,7 @@
         <button type="button" data-route="director">AI Director</button>
         <button type="button" data-route="masters">マスタ管理</button>
       </nav>
+      <label class="headerToken"><span>管理トークン</span><input id="adminToken" type="password" autocomplete="off" placeholder="書込み時のみ必要"></label>
     </header>
 
     <main id="homeView" class="directorPage" data-director-view="home">
@@ -53,7 +54,6 @@
           <label><span>対象期間の開始日</span><input id="periodStart" type="date" required></label>
           <label><span>対象期間の終了日</span><input id="periodEnd" type="date" required></label>
           <label><span>対象チャンネル</span><input id="channelName" value="AKBの素を出すちゃんねる" required></label>
-          <label><span>管理用トークン</span><input id="adminToken" type="password" autocomplete="current-password" placeholder="Cloud Runで設定したトークン"></label>
         </div>
         <label class="fileDrop" for="csvFile">
           <input id="csvFile" type="file" accept=".csv,text/csv">
@@ -70,7 +70,7 @@
     <main id="reviewView" class="directorPage" data-director-view="review" hidden>
       <div class="directorPageHeader">
         <div><p class="eyebrow">STEP 2</p><h1>未確認動画</h1><p class="meta">新規動画だけ表示します。確認済み動画は翌週に再入力しません。</p></div>
-        <div class="commandRow"><button id="selectAllReviews" class="secondaryButton" type="button">すべて選択</button><button id="confirmSelected" class="primaryButton" type="button">選択した動画を確認済みにする</button></div>
+        <div class="commandRow"><button id="selectAllReviews" class="secondaryButton" type="button">すべて選択</button><button id="reclassifyReviews" class="secondaryButton" type="button">自動判定を再実行</button><button id="confirmSelected" class="primaryButton" type="button">選択した動画を確認済みにする</button></div>
       </div>
       <div class="reviewFilters"><label><input id="lowConfidenceOnly" type="checkbox"> 信頼度が低い候補だけ表示</label></div>
       <section id="reviewList" class="reviewList" aria-live="polite"></section>
@@ -82,6 +82,7 @@
         <section class="directorPanel"><h2>メンバー</h2><form id="memberForm" class="inlineForm"><input name="name" placeholder="メンバー名" required><button class="primaryButton" type="submit">追加</button></form><div id="memberList" class="chipList"></div></section>
         <section class="directorPanel"><h2>企画ジャンル</h2><form id="categoryForm" class="inlineForm"><input name="name" placeholder="ジャンル名" required><button class="primaryButton" type="submit">追加</button></form><div id="categoryList" class="chipList"></div></section>
       </div>
+      <section class="directorPanel"><div class="panelHeader"><div><span class="sectionLabel">動画属性</span><h2>確認済み動画も後から修正</h2></div></div><div id="videoAttributeEditor"></div></section>
     </main>
 
     <main id="directorView" class="directorPage" data-director-view="director" hidden>

@@ -44,6 +44,14 @@ test("preview reports missing values without crashing", async () => {
   assert.equal(preview.registeredVideoCount, 1);
 });
 
+test("invalid CSV previews leave an error record", async () => {
+  const repository = new MemoryRepository();
+  await assert.rejects(previewImport(repository, { ...base, csvText: "動画タイトル,視聴回数\nテスト,10\n" }), /必須列/);
+  const state = await repository.read();
+  assert.equal(state.imports[0].status, "error");
+  assert.match(state.imports[0].error, /必須列/);
+});
+
 test("historical first-seen videos do not require weekly review", async () => {
   const repository = new MemoryRepository();
   const content = "動画ID,動画タイトル,公開日時\nabcdefghijk,過去動画,Jun 1 2026\nlmnopqrstuv,今週動画,Jul 4 2026\n";
@@ -66,4 +74,22 @@ test("confirmed video attributes are not overwritten by a later import", async (
   assert.equal(state.videos[0].genre, "ユーザー確認済みジャンル");
   assert.equal(state.videos[0].status, "confirmed");
   assert.equal(state.classifications.length, 1);
+});
+
+test("an interrupted import is resumed under the original import id", async () => {
+  const repository = new MemoryRepository();
+  const processingId = "import_processing";
+  const state = await repository.read();
+  state.imports.push({ id: processingId, fileHash: require("../lib/import-service").sha256(csv), status: "processing", newVideoCount: 1 });
+  state.videos.push({ videoId: "abcdefghijk", title: "途中まで保存された動画", status: "unconfirmed" });
+  state.metrics.push({ id: "partial", importId: processingId, videoId: "abcdefghijk", periodStart: base.periodStart, periodEnd: base.periodEnd, version: 1, current: true, values: {} });
+  repository.state = state;
+  const result = await commitImport(repository, base);
+  const completed = (await repository.read()).imports;
+  const metrics = (await repository.read()).metrics;
+  assert.equal(completed.length, 1);
+  assert.equal(completed[0].id, processingId);
+  assert.equal(completed[0].status, "completed");
+  assert.equal(result.manualReviewCount, 1);
+  assert.equal(metrics.filter((item) => item.current).length, 1);
 });

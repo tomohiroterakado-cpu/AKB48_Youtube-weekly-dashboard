@@ -48,6 +48,8 @@ body {
 .directorNav { display: flex; gap: 4px; overflow-x: auto; }
 .directorNav button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 700; padding: 10px 12px; cursor: pointer; white-space: nowrap; }
 .directorNav button.active { color: var(--akb-red); border-bottom: 2px solid var(--akb-red); }
+.headerToken { display: grid; gap: 3px; margin-left: auto; min-width: 180px; color: var(--muted); font-size: 10px; font-weight: 800; }
+.headerToken input { min-height: 34px; padding: 6px 8px; font-size: 12px; }
 .navBadge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 4px; border-radius: 10px; background: var(--akb-red); color: white; font-size: 11px; }
 
 .directorPage { width: min(1160px, calc(100% - 32px)); margin: 0 auto; padding: 36px 0 64px; }
@@ -69,7 +71,8 @@ body {
 .infoItem { border-left-color: var(--teal); background: #eefafa; }
 .formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .formGrid label, .reviewField, .policyControl { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 700; }
-input, select { width: 100%; min-height: 42px; padding: 9px 10px; border: 1px solid #cfc5bf; border-radius: 6px; background: white; color: var(--ink); font: inherit; }
+input, select, textarea { width: 100%; min-height: 42px; padding: 9px 10px; border: 1px solid #cfc5bf; border-radius: 6px; background: white; color: var(--ink); font: inherit; }
+textarea { min-height: 84px; resize: vertical; }
 .fileDrop { display: grid; place-items: center; min-height: 170px; margin: 18px 0; padding: 24px; border: 2px dashed #cfc5bf; border-radius: 8px; background: rgba(255,255,255,.6); cursor: pointer; text-align: center; }
 .fileDrop input { width: auto; min-height: 0; margin-bottom: 14px; }
 .fileDrop span { margin-top: 6px; color: var(--muted); font-size: 12px; }
@@ -110,6 +113,7 @@ input, select { width: 100%; min-height: 42px; padding: 9px 10px; border: 1px so
 @media (max-width: 820px) {
   .directorHeader { align-items: flex-start; flex-direction: column; gap: 4px; padding: 10px 16px 0; }
   .directorNav { width: 100%; }
+  .headerToken { width: 100%; margin: 2px 0 8px; }
   .workflowGrid, .reviewFieldGrid, .factGrid { grid-template-columns: repeat(2, 1fr); }
   .threeSteps, .masterGrid { grid-template-columns: 1fr; }
   .reviewHeading { grid-template-columns: 22px 110px 1fr; }

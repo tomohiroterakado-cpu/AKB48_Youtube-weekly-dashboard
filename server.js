@@ -6,7 +6,7 @@ const { JsonRepository } = require("./lib/repository");
 const { GoogleSheetsRepository } = require("./lib/sheets-repository");
 const { commitImport, previewImport } = require("./lib/import-service");
 const { buildDirectorReport } = require("./lib/analysis");
-const { confirmVideos } = require("./lib/review-service");
+const { confirmVideos, reclassifyUnconfirmedVideos, updateVideoAttributes } = require("./lib/review-service");
 
 const root = __dirname;
 const port = Number(process.env.PORT || 8080);
@@ -117,6 +117,18 @@ async function handleApi(req, res, pathname) {
     authorizeWrite(req);
     const body = await readJson(req);
     const result = await repository.mutate((state) => confirmVideos(state, body));
+    return json(res, 200, result);
+  }
+  if (req.method === "POST" && pathname === "/api/videos/reclassify") {
+    authorizeWrite(req);
+    const body = await readJson(req);
+    const result = await repository.mutate((state) => reclassifyUnconfirmedVideos(state, body.videoIds));
+    return json(res, 200, result);
+  }
+  if (req.method === "POST" && pathname === "/api/videos/attributes") {
+    authorizeWrite(req);
+    const body = await readJson(req);
+    const result = await repository.mutate((state) => updateVideoAttributes(state, body));
     return json(res, 200, result);
   }
   if (req.method === "POST" && (pathname === "/api/members" || pathname === "/api/categories")) {
