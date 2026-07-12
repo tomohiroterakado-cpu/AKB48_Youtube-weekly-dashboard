@@ -1,35 +1,115 @@
-# AKBの素を出すちゃんねる 週次ダッシュボード
+# AKB YouTube AI Director
 
-`index.html` をブラウザで開くと、蓄積用Google Sheetsの最新週次結果を視覚化したダッシュボードを確認できます。
+「AKBの素を出すちゃんねる」の週次CSVを蓄積し、新規動画だけを確認して、週次レポートと企画判断につなげるWebアプリです。既存の週次ダッシュボードを維持しながら、CSV取込・重複防止・動画属性確認・安全なAI Director表示を追加しています。
 
-Google Cloudで社内やスマホからURL閲覧できるようにする場合は、Cloud Runにデプロイします。
+## 毎週の運用
 
-## 更新方針
+1. YouTube Studioの `表データ.csv` をアップロードする。
+2. その週に公開された新規動画だけ、自動判定結果を確認する。
+3. AI Directorの週次レポートを確認する。
 
-- 毎週火曜13:00: 既存の週次レポート自動化がスプレッドシートを更新
-- 毎週火曜15:00: サイトがApps Script経由でスプレッドシートの全週データを読み込み
-- 表示対象: `CSV_週次集計`、`自チャンネル動画`、`企画案`、`目標設定`
-- サイト上部のプルダウンで、蓄積された週次レポートを切り替え表示
+詳しい操作は [docs/operations-manual.md](docs/operations-manual.md) を参照してください。
 
-## Google Cloud公開
+## システム構成
 
-初回だけ `deploy/cloud-run.env.example` を `deploy/cloud-run.env` にコピーして、`PROJECT_ID` を設定してください。
+- フロントエンド: HTML / CSS / Vanilla JavaScript
+- Webサーバー: Node.js 20以上
+- 本番データ: Google Sheets API経由の既存蓄積シート
+- ローカルデータ: JSONファイル（開発専用）
+- 公開: Cloud Build + Artifact Registry + Cloud Run
+- 既存週次データ: Google Apps Scriptの読取API。取得失敗時は同梱データへフォールバック
+
+詳細は [docs/architecture.md](docs/architecture.md) を参照してください。
+
+## ローカル起動
 
 ```bash
-cd /Users/terakadotomohiro/Documents/Youtubeリサーチ/akb-weekly-dashboard
-bash deploy/deploy-cloud-run.sh
+ADMIN_ACCESS_TOKEN=local-test-token \
+DATA_BACKEND=json \
+PORT=8080 \
+node server.js
 ```
 
-詳しい設計は `docs/google-cloud-design.md` にまとめています。
+ブラウザで `http://127.0.0.1:8080` を開きます。JSONは `.data/director.json` に保存され、Git管理されません。
 
-## 反映元
+## 環境変数
 
-https://docs.google.com/spreadsheets/d/1fYJtcL-rqzLLe-vJmkWBQR5q9M5cxXCam5v0TAHJBZM/edit?usp=drivesdk
+| 変数 | 必須 | 用途 |
+|---|---:|---|
+| `PORT` | Cloud Runで自動 | HTTP待受ポート |
+| `NODE_ENV` | 推奨 | 本番は `production` |
+| `DATA_BACKEND` | 本番必須 | `sheets` または開発用 `json` |
+| `GOOGLE_SPREADSHEET_ID` | sheets時必須 | 永続化するGoogle Sheets ID |
+| `ADMIN_ACCESS_TOKEN` | 書込時必須 | CSV取込・確認・マスタ編集の保護 |
+| `GOOGLE_ACCESS_TOKEN` | ローカルSheets検証のみ | 本番Cloud Runではメタデータ認証を使用 |
+| `DATA_FILE` | 任意 | JSON保存先 |
 
-## 目標設定
+`ADMIN_ACCESS_TOKEN`、OAuth JSON、APIキーはコードやGitHubに保存しません。
 
-`目標設定` タブで、2027年3月末までの累計目標を管理します。
+## CSV仕様
 
-- `目標値` を変更すると、サイトの進捗率と達成見込みが変わります。
-- `対象指標` は `CSV_週次集計` の列名と一致させます。
-- 達成見込みは、現在までの累計ペースと残り週数から簡易計算します。蓄積週が増えるほど見立ての精度が上がります。
+必須列は動画IDと動画タイトルです。YouTube Studioの表記揺れとして `コンテンツ` / `動画ID`、`動画のタイトル` / `動画タイトル` を自動マッピングします。利用可能な列・欠損時の扱いは [docs/csv-spec.md](docs/csv-spec.md) に記載しています。
+
+重複時の規則:
+
+- 同一ファイルハッシュ: スキップ
+- 同一期間・同一動画・更新CSV: 既定は別バージョンとして保存
+- `skip`: 既存指標を残す
+- `update`: 旧版を残したまま最新版フラグを切り替える
+- 既存データの削除は行わない
+
+## 自動判定
+
+- ルール判定: 動画形式候補、タイトル特徴、企画ジャンル候補、タグ候補
+- メンバー候補: メンバーマスタとの一致を最優先。未登録時はタイトル内ハッシュタグを低信頼度候補として表示
+- サムネイル: YouTubeのサムネイルURLを取得。画像内容のAI判定は現段階では未判定
+- 保存元: `system_auto`、将来の `ai_suggestion`、`user_confirmed`、`user_manual` を分離
+
+ユーザー確認済み属性は、翌週CSVや自動判定の再実行で上書きしません。
+
+## データ不足時の挙動
+
+- 履歴1週: `参考値`、信頼度 `低`
+- 必要列なし: `データ不足のため判定不可`
+- 4週未満: 4週移動平均を表示しない
+- 24時間 / 48時間 / 7日等の同一経過期間データなし: 空欄。推測しない
+- AI API失敗・未設定: CSV取込、動画確認、通常集計は利用可能
+
+## テスト
+
+```bash
+npm test
+npm run check
+```
+
+ユニットテストはCSV引用符、列名揺れ、必須列不足、説明行除外、重複防止、履歴保存、確認済み保護、信頼度を対象にしています。
+
+## Cloud Runデプロイ
+
+GitHubの `main` へのpushでCloud Buildトリガーが起動し、Artifact Registryへ保存後、Cloud Run `akb-weekly-dashboard` を更新します。
+
+初回に必要な作業:
+
+1. Cloud Run実行サービスアカウントへ対象Google Sheetsの編集権限を付与する。
+2. Cloud Run環境変数 `ADMIN_ACCESS_TOKEN` に長いランダム文字列を設定する。
+3. Google Sheets APIが有効であることを確認する。
+4. `main` へ反映し、Cloud Build成功後に `/api/health` を確認する。
+
+## バックアップと復旧
+
+- 正本はGoogle Sheets。Driveの版履歴を保持する。
+- CSV原本は削除せず、取込ファイル名とSHA-256を履歴に残す。
+- Cloud Runはコンテナイメージの旧リビジョンへトラフィックを戻せる。
+- コードは機能単位コミットへ戻す。
+- AI用タブを削除しても既存の週次KPI・自チャンネル動画・企画案・目標設定には影響しない。
+
+## 今後必要なCSV
+
+- 公開後24 / 48時間、7 / 28 / 90日のスナップショット
+- 平均視聴率
+- Shortsの視聴選択率、スワイプ率、共有数
+- 性別×動画、新規／リピーター×動画
+- 流入元と関連動画への送客
+- サムネイル変更履歴
+
+ロードマップは [docs/future-roadmap.md](docs/future-roadmap.md) を参照してください。
