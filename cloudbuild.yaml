@@ -41,7 +41,7 @@ steps:
       - --region=${_REGION}
       - --platform=managed
       - --allow-unauthenticated
-      - --max-instances=2
+      - --max-instances=1
       - --memory=256Mi
       - --update-env-vars=DATA_BACKEND=sheets,GOOGLE_SPREADSHEET_ID=${_SPREADSHEET_ID}
 

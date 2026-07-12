@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { classifyVideo, extractTitleFeatures } = require("../lib/classification");
+const { classifyPublication, classifyVideo, extractTitleFeatures } = require("../lib/classification");
 
 test("title features are extracted deterministically", () => {
   const result = extractTitleFeatures("【初公開】AKB48で本気の対決！？ #山内瑞葵");
@@ -21,4 +21,11 @@ test("short duration alone remains a candidate", () => {
   const result = classifyVideo({ videoId: "abc", title: "短い動画", durationSeconds: 90 }, []);
   assert.equal(result.format.value, "shorts_candidate");
   assert.equal(result.format.needsReview, true);
+});
+
+test("publication weekday is calculated without inventing a time", () => {
+  const result = classifyPublication("Jul 4, 2026");
+  assert.equal(result.weekday, "土");
+  assert.equal(result.time, null);
+  assert.equal(result.timeSlot, "未取得");
 });

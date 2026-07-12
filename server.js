@@ -6,6 +6,7 @@ const { JsonRepository } = require("./lib/repository");
 const { GoogleSheetsRepository } = require("./lib/sheets-repository");
 const { commitImport, previewImport } = require("./lib/import-service");
 const { buildDirectorReport } = require("./lib/analysis");
+const { confirmVideos } = require("./lib/review-service");
 
 const root = __dirname;
 const port = Number(process.env.PORT || 8080);
@@ -115,24 +116,7 @@ async function handleApi(req, res, pathname) {
   if (req.method === "POST" && pathname === "/api/videos/confirm") {
     authorizeWrite(req);
     const body = await readJson(req);
-    const ids = Array.isArray(body.videoIds) ? body.videoIds : [];
-    const now = new Date().toISOString();
-    const result = await repository.mutate((state) => {
-      let confirmed = 0;
-      state.videos.forEach((video) => {
-        if (!ids.includes(video.videoId)) return;
-        const edits = body.edits?.[video.videoId] || {};
-        ["format", "genre", "subgenre", "members", "guests", "tags", "collaboration", "titleAppeal", "targetAudience", "notes"].forEach((field) => {
-          if (edits[field] !== undefined) video[field] = edits[field];
-        });
-        video.status = "confirmed";
-        video.reviewedAt = now;
-        video.reviewedBy = body.reviewedBy || "dashboard-user";
-        video.updatedAt = now;
-        confirmed += 1;
-      });
-      return { confirmed };
-    });
+    const result = await repository.mutate((state) => confirmVideos(state, body));
     return json(res, 200, result);
   }
   if (req.method === "POST" && (pathname === "/api/members" || pathname === "/api/categories")) {

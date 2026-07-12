@@ -181,7 +181,8 @@ function renderReviewCard(video) {
   const heading = directorEl("div", "reviewHeading");
   const checkbox = directorEl("input", "reviewSelect"); checkbox.type = "checkbox"; checkbox.value = video.videoId;
   const image = directorEl("img", "reviewThumb"); image.src = classification.thumbnailUrl || `https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg`; image.alt = "";
-  const title = directorEl("div", ""); title.append(directorEl("h2", "", video.title), directorEl("p", "meta", `${video.publishedAt || "公開日未取得"} / ${video.videoId}`));
+  const publication = classification.publication || {};
+  const title = directorEl("div", ""); title.append(directorEl("h2", "", video.title), directorEl("p", "meta", `${video.publishedAt || "公開日未取得"}${publication.weekday && publication.weekday !== "未取得" ? `（${publication.weekday}）` : ""} / ${publication.time || "公開時刻未取得"} / ${video.videoId}`));
   heading.append(checkbox, image, title); card.appendChild(heading);
   const fields = directorEl("div", "reviewFieldGrid");
   fields.append(
