@@ -75,6 +75,56 @@ function renderGoals() {
   });
 }
 
+function formatSignedValue(value, format) {
+  const number = Number(value || 0);
+  const sign = number > 0 ? "+" : "";
+  return `${sign}${formatMetric(number, format)}`;
+}
+
+function formatComparisonNote(item) {
+  if (item.type === "average") return item.note || "";
+  const percentText = item.deltaPercent === null || item.deltaPercent === undefined
+    ? "差分率 -"
+    : `差分率 ${formatSignedValue(item.deltaPercent, "percent")}`;
+  return `${percentText} / 基準 ${formatMetric(item.baseline, item.format)}`;
+}
+
+function renderTrends() {
+  const panel = document.getElementById("trendPanel");
+  const grid = document.getElementById("trendGrid");
+  const note = document.getElementById("trendNote");
+  const sections = data.trend?.sections || [];
+
+  if (!sections.length) {
+    panel.hidden = true;
+    return;
+  }
+
+  panel.hidden = false;
+  grid.replaceChildren();
+  note.textContent = data.trend.note || "";
+
+  sections.forEach((section) => {
+    const card = el("article", "goalCard");
+    const top = el("div", "goalTop");
+    top.appendChild(el("span", "", section.label));
+    top.appendChild(el("span", "", section.note));
+    card.appendChild(top);
+    card.appendChild(el("h3", "", section.title));
+
+    section.items.forEach((item) => {
+      const row = el("div", "probability");
+      const value = item.type === "average"
+        ? formatMetric(item.value, item.format)
+        : formatSignedValue(item.delta, item.format);
+      row.textContent = `${item.label}: ${value} / ${formatComparisonNote(item)}`;
+      card.appendChild(row);
+    });
+
+    grid.appendChild(card);
+  });
+}
+
 function renderVideos() {
   const list = document.getElementById("topVideos");
   list.replaceChildren();
@@ -234,6 +284,7 @@ function renderWeekSelect() {
 function renderAll() {
   renderMeta();
   renderKpis();
+  renderTrends();
   renderGoals();
   renderVideos();
   renderDailyBars();
