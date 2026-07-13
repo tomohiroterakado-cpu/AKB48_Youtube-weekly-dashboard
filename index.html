@@ -20,7 +20,11 @@
         <button type="button" data-route="director">AI Director</button>
         <button type="button" data-route="masters">マスタ管理</button>
       </nav>
-      <label class="headerToken"><span>管理トークン</span><input id="adminToken" type="password" autocomplete="off" placeholder="書込み時のみ必要"></label>
+      <div class="adminControls" aria-live="polite">
+        <span id="adminModeStatus" class="adminModeStatus">閲覧モード</span>
+        <button id="openAdminLogin" class="secondaryButton compactButton" type="button">管理モードにログイン</button>
+        <button id="adminLogout" class="secondaryButton compactButton" type="button" hidden>ログアウト</button>
+      </div>
     </header>
 
     <main id="homeView" class="directorPage" data-director-view="home">
@@ -188,6 +192,20 @@
         <span>毎週火曜 15:00 自動更新予定</span>
       </footer>
     </main>
+
+    <dialog id="adminLoginDialog" class="adminDialog" aria-labelledby="adminLoginTitle">
+      <form id="adminLoginForm" class="adminLoginForm">
+        <span class="sectionLabel">管理者のみ</span>
+        <h2 id="adminLoginTitle">管理モードにログイン</h2>
+        <p class="meta">CSV取込、未確認動画の確認、マスタ更新を行うときだけ使用します。管理コードはこのブラウザを閉じると消去されます。</p>
+        <label class="reviewField"><span>管理コード</span><input id="adminToken" type="password" autocomplete="current-password" required placeholder="管理コードを入力"></label>
+        <p id="adminLoginError" class="errorItem" hidden></p>
+        <div class="commandRow">
+          <button class="primaryButton" type="submit">管理モードを開始</button>
+          <button id="cancelAdminLogin" class="secondaryButton" type="button">閲覧モードのまま戻る</button>
+        </div>
+      </form>
+    </dialog>
 
     <script src="./data/config.js"></script>
     <script src="./data/latest.js"></script>

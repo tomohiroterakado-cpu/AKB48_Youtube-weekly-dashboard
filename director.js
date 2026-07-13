@@ -1,4 +1,5 @@
-const directorState = { previewPayload: null, reviewVideos: [], videos: [], selectedVideoId: "", masters: { members: [], categories: [] } };
+const ADMIN_TOKEN_KEY = "akb-ai-director-admin-token";
+const directorState = { previewPayload: null, reviewVideos: [], videos: [], selectedVideoId: "", masters: { members: [], categories: [] }, adminToken: sessionStorage.getItem(ADMIN_TOKEN_KEY) || "" };
 
 function directorEl(tag, className, text) {
   const node = document.createElement(tag);
@@ -8,7 +9,35 @@ function directorEl(tag, className, text) {
 }
 
 function adminHeaders() {
-  return { "Content-Type": "application/json", "X-Admin-Token": document.getElementById("adminToken")?.value || "" };
+  return { "Content-Type": "application/json", "X-Admin-Token": directorState.adminToken };
+}
+
+function updateAdminControls() {
+  const loggedIn = Boolean(directorState.adminToken);
+  document.getElementById("adminModeStatus").textContent = loggedIn ? "管理モード" : "閲覧モード";
+  document.getElementById("adminModeStatus").classList.toggle("active", loggedIn);
+  document.getElementById("openAdminLogin").hidden = loggedIn;
+  document.getElementById("adminLogout").hidden = !loggedIn;
+}
+
+function openAdminLogin(message = "") {
+  const dialog = document.getElementById("adminLoginDialog");
+  const error = document.getElementById("adminLoginError");
+  error.hidden = !message;
+  error.textContent = message;
+  if (!dialog.open) dialog.showModal();
+  document.getElementById("adminToken").focus();
+}
+
+function closeAdminLogin() {
+  const dialog = document.getElementById("adminLoginDialog");
+  if (dialog.open) dialog.close();
+}
+
+function requireAdmin() {
+  if (directorState.adminToken) return true;
+  openAdminLogin("この操作には管理モードへのログインが必要です。");
+  return false;
 }
 
 async function api(path, options = {}) {
@@ -103,6 +132,7 @@ async function readSelectedCsv() {
 }
 
 async function previewUpload() {
+  if (!requireAdmin()) return;
   const result = document.getElementById("importResult");
   result.hidden = false;
   result.replaceChildren(directorEl("p", "meta", "CSVを検査しています..."));
@@ -145,6 +175,7 @@ async function previewUpload() {
 }
 
 async function commitUpload() {
+  if (!requireAdmin()) return;
   const result = document.getElementById("importResult");
   try {
     const payload = { ...directorState.previewPayload, conflictPolicy: document.getElementById("conflictPolicy")?.value || "version" };
@@ -221,6 +252,7 @@ function renderReviews() {
 }
 
 async function confirmSelected() {
+  if (!requireAdmin()) return;
   const cards = [...document.querySelectorAll(".reviewCard")];
   const selected = cards.filter((card) => card.querySelector(".reviewSelect")?.checked);
   if (!selected.length) { alert("確認済みにする動画を選択してください。"); return; }
@@ -240,6 +272,7 @@ async function confirmSelected() {
 }
 
 async function reclassifyReviews() {
+  if (!requireAdmin()) return;
   const selectedIds = [...document.querySelectorAll(".reviewSelect:checked")].map((input) => input.value);
   try {
     const result = await api("/api/videos/reclassify", { method: "POST", headers: adminHeaders(), body: JSON.stringify({ videoIds: selectedIds }) });
@@ -302,6 +335,7 @@ function renderVideoAttributeEditor() {
 }
 
 async function saveVideoAttributes() {
+  if (!requireAdmin()) return;
   const edits = {};
   document.querySelectorAll("[data-attribute-field]").forEach((input) => {
     const field = input.dataset.attributeField;
@@ -316,6 +350,7 @@ async function saveVideoAttributes() {
 
 async function addMaster(event, path) {
   event.preventDefault();
+  if (!requireAdmin()) return;
   const form = event.currentTarget;
   const name = new FormData(form).get("name");
   try { await api(path, { method: "POST", headers: adminHeaders(), body: JSON.stringify({ name }) }); form.reset(); await loadMasters(); }
@@ -332,5 +367,30 @@ document.getElementById("selectAllReviews").addEventListener("click", () => docu
 document.getElementById("lowConfidenceOnly").addEventListener("change", renderReviews);
 document.getElementById("memberForm").addEventListener("submit", (event) => addMaster(event, "/api/members"));
 document.getElementById("categoryForm").addEventListener("submit", (event) => addMaster(event, "/api/categories"));
+document.getElementById("openAdminLogin").addEventListener("click", () => openAdminLogin());
+document.getElementById("cancelAdminLogin").addEventListener("click", closeAdminLogin);
+document.getElementById("adminLogout").addEventListener("click", () => {
+  directorState.adminToken = "";
+  sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+  updateAdminControls();
+});
+document.getElementById("adminLoginForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const token = document.getElementById("adminToken").value.trim();
+  const error = document.getElementById("adminLoginError");
+  error.hidden = true;
+  try {
+    await api("/api/admin/session", { method: "POST", headers: { "X-Admin-Token": token } });
+    directorState.adminToken = token;
+    sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
+    document.getElementById("adminToken").value = "";
+    updateAdminControls();
+    closeAdminLogin();
+  } catch (loginError) {
+    error.textContent = loginError.message === "管理用トークンが正しくありません。" ? "管理コードが正しくありません。" : loginError.message;
+    error.hidden = false;
+  }
+});
 window.addEventListener("hashchange", () => showRoute(location.hash.slice(1)));
+updateAdminControls();
 showRoute(location.hash.slice(1) || "home");
