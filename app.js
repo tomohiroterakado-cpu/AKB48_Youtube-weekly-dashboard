@@ -4,6 +4,7 @@ const percent = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 1 });
 
 function formatValue(item) {
   if (item.format === "hours") return `${oneDecimal.format(item.value)}h`;
+  if (item.format === "signed_number" || item.label === "メンバーシップ増減数") return formatSignedValue(item.value, "number");
   if (item.format === "number") return yen.format(item.value);
   return item.value;
 }
