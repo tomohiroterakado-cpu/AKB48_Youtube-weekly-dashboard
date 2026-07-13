@@ -96,6 +96,10 @@ async function handleApi(req, res, pathname) {
   if (req.method === "GET" && pathname === "/api/ai-director") {
     return json(res, 200, buildDirectorReport(await repository.read()));
   }
+  if (req.method === "POST" && pathname === "/api/admin/session") {
+    authorizeWrite(req);
+    return json(res, 200, { ok: true, message: "管理モードを開始しました。" });
+  }
   if (req.method === "POST" && pathname === "/api/imports/preview") {
     authorizeWrite(req);
     return json(res, 200, await previewImport(repository, await readJson(req)));
