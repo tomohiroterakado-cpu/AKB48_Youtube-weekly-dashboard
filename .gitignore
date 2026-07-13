@@ -1,0 +1,9 @@
+.DS_Store
+.data/
+coverage/
+node_modules/
+deploy/cloud-run.env
+*.log
+secrets/
+*client_secret*.json
+*oauth*.json

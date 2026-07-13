@@ -2,8 +2,15 @@ substitutions:
   _REGION: asia-northeast1
   _SERVICE: akb-weekly-dashboard
   _REPOSITORY: akb-dashboard
+  _SPREADSHEET_ID: 1fYJtcL-rqzLLe-vJmkWBQR5q9M5cxXCam5v0TAHJBZM
 
 steps:
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - services
+      - enable
+      - sheets.googleapis.com
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: bash
     args:
@@ -34,8 +41,9 @@ steps:
       - --region=${_REGION}
       - --platform=managed
       - --allow-unauthenticated
-      - --max-instances=2
+      - --max-instances=1
       - --memory=256Mi
+      - --update-env-vars=DATA_BACKEND=sheets,GOOGLE_SPREADSHEET_ID=${_SPREADSHEET_ID}
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$SHORT_SHA

@@ -5,7 +5,8 @@
   "description": "AKBの素を出すちゃんねる weekly YouTube dashboard",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check app.js && node --check data/latest.js"
+    "check": "node --check server.js && node --check app.js && node --check director.js && node --check data/latest.js",
+    "test": "node --test test/*.test.js"
   },
   "engines": {
     "node": ">=20"
