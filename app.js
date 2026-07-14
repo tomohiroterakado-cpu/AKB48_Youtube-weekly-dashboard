@@ -262,6 +262,7 @@ function mergeDirectorWeeks(primary, directorData) {
       ...week,
       ...existing,
       kpis: mergeWeekKpis(existing.kpis, week.kpis),
+      goals: week.goals?.items?.length ? week.goals : existing.goals,
       dailyUnique: existing.dailyUnique?.length ? existing.dailyUnique : week.dailyUnique,
       topVideos: existing.topVideos?.length ? existing.topVideos : week.topVideos
     });
@@ -282,7 +283,10 @@ function mergeWeekKpis(primaryKpis, directorKpis) {
     return item;
   });
   const labels = new Set(merged.map((item) => item.label));
-  (directorKpis || []).forEach((item) => { if (!labels.has(item.label)) merged.push(item); });
+  (directorKpis || []).forEach((item) => {
+    const duplicate = item.label === "総視聴回数" && labels.has("週間視聴回数");
+    if (!labels.has(item.label) && !duplicate) merged.push(item);
+  });
   return merged;
 }
 

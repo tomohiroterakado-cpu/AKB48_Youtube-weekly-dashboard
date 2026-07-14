@@ -7,6 +7,7 @@ const { GoogleSheetsRepository } = require("./lib/sheets-repository");
 const { commitImport, commitWeeklyImport, previewImport, previewWeeklyImport } = require("./lib/import-service");
 const { buildDirectorReport } = require("./lib/analysis");
 const { buildWeeklyDashboardData } = require("./lib/weekly-dashboard-report");
+const { buildReportWithLegacyGoals } = require("./lib/legacy-goals");
 const { syncLegacyWeeklyReport } = require("./lib/legacy-sheet-sync");
 const { confirmVideos, reclassifyUnconfirmedVideos, updateVideoAttributes } = require("./lib/review-service");
 
@@ -103,7 +104,8 @@ async function handleApi(req, res, pathname) {
     return json(res, 200, buildDirectorReport(await repository.read()));
   }
   if (req.method === "GET" && pathname === "/api/weekly-dashboard") {
-    return json(res, 200, buildWeeklyDashboardData(await repository.read()));
+    const report = buildWeeklyDashboardData(await repository.read());
+    return json(res, 200, await buildReportWithLegacyGoals(repository, report));
   }
   if (req.method === "POST" && pathname === "/api/admin/session") {
     authorizeWrite(req);
