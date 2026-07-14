@@ -308,8 +308,134 @@ async function loadMasters() {
     directorState.masters = { members: payload.members, categories: payload.categories };
     const memberList = document.getElementById("memberList"); memberList.replaceChildren(); payload.members.forEach((item) => memberList.appendChild(directorEl("span", "masterChip", item.name)));
     const categoryList = document.getElementById("categoryList"); categoryList.replaceChildren(); payload.categories.forEach((item) => categoryList.appendChild(directorEl("span", "masterChip", item.name)));
+    populateMasterSearchFilters();
+    renderMasterSearch();
     renderVideoAttributeEditor();
   } catch (error) { document.getElementById("memberList").textContent = error.message; }
+}
+
+function textList(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item || "").trim()).filter(Boolean);
+  return String(value || "").split(/[、,]/).map((item) => item.trim()).filter(Boolean);
+}
+
+function searchMembers(video) {
+  const confirmed = textList(video.members);
+  const suggested = textList(video.classification?.members?.value);
+  return { values: confirmed.length ? confirmed : suggested, suggested: !confirmed.length && suggested.length > 0 };
+}
+
+function searchGenre(video) {
+  const confirmed = String(video.genre || "").trim();
+  const suggested = String(video.classification?.genre?.value || "").trim();
+  return { value: confirmed || suggested || "未設定", suggested: !confirmed && Boolean(suggested) };
+}
+
+function searchTags(video) {
+  const confirmed = textList(video.tags);
+  return confirmed.length ? confirmed : textList(video.classification?.tags?.value);
+}
+
+function selectOptions(select, values, emptyLabel) {
+  const current = select.value;
+  select.replaceChildren();
+  const empty = directorEl("option", "", emptyLabel); empty.value = ""; select.appendChild(empty);
+  values.forEach((value) => { const option = directorEl("option", "", value); option.value = value; select.appendChild(option); });
+  select.value = values.includes(current) ? current : "";
+}
+
+function populateMasterSearchFilters() {
+  const members = new Set(directorState.masters.members.map((item) => item.name));
+  const genres = new Set(directorState.masters.categories.map((item) => item.name));
+  directorState.videos.forEach((video) => {
+    searchMembers(video).values.forEach((member) => members.add(member));
+    const genre = searchGenre(video).value;
+    if (genre !== "未設定") genres.add(genre);
+  });
+  selectOptions(document.getElementById("masterMemberFilter"), [...members].sort((a, b) => a.localeCompare(b, "ja")), "すべてのメンバー");
+  selectOptions(document.getElementById("masterGenreFilter"), [...genres].sort((a, b) => a.localeCompare(b, "ja")), "すべてのジャンル");
+}
+
+function renderMasterSearch() {
+  const query = document.getElementById("masterSearchQuery").value.trim().toLocaleLowerCase("ja");
+  const member = document.getElementById("masterMemberFilter").value;
+  const genre = document.getElementById("masterGenreFilter").value;
+  const searchable = directorState.videos.map((video) => ({ video, members: searchMembers(video), genre: searchGenre(video), tags: searchTags(video) }));
+  const results = searchable.filter((item) => {
+    if (member && !item.members.values.includes(member)) return false;
+    if (genre && item.genre.value !== genre) return false;
+    if (!query) return true;
+    return [item.video.title, item.video.videoId, item.genre.value, ...item.members.values, ...item.tags]
+      .join(" ").toLocaleLowerCase("ja").includes(query);
+  });
+  const confirmedAttributes = results.filter((item) => item.video.status === "confirmed").length;
+  const summary = document.getElementById("masterSearchSummary");
+  summary.replaceChildren(
+    masterSummaryItem("該当作品", `${results.length}本`),
+    masterSummaryItem("確認済み属性", `${confirmedAttributes}本`),
+    masterSummaryItem("自動候補を含む", `${results.length - confirmedAttributes}本`)
+  );
+
+  const list = document.getElementById("masterSearchResults");
+  list.replaceChildren();
+  const visibleResults = results.slice(0, 100);
+  document.getElementById("masterSearchResultsTitle").textContent = member ? `${member}の出演作品` : genre ? `「${genre}」の作品` : "作品一覧";
+  document.getElementById("masterSearchResultLimit").textContent = results.length > visibleResults.length ? `上位${visibleResults.length}本を表示` : "";
+  if (!visibleResults.length) {
+    list.appendChild(directorEl("p", "emptyState", "条件に合う動画がありません。メンバー・ジャンルの登録後に検索対象が増えます。"));
+  } else {
+    visibleResults.forEach((item) => list.appendChild(renderMasterSearchResult(item)));
+  }
+  renderMemberAppearanceStats(results, member || genre || query ? "選択条件内の出演回数" : "登録動画全体の出演回数");
+}
+
+function masterSummaryItem(label, value) {
+  const item = directorEl("div", "masterSummaryItem");
+  item.append(directorEl("span", "", label), directorEl("strong", "", value));
+  return item;
+}
+
+function renderMasterSearchResult(item) {
+  const { video, members, genre, tags } = item;
+  const row = directorEl("article", "masterSearchResult");
+  const thumbnail = directorEl("img", "masterSearchThumb");
+  thumbnail.src = video.thumbnailUrl || `https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg`;
+  thumbnail.alt = "";
+  thumbnail.loading = "lazy";
+  const body = directorEl("div", "masterSearchBody");
+  body.appendChild(directorEl("h4", "", video.title || video.videoId));
+  body.appendChild(directorEl("p", "meta", `${video.publishedAt || "公開日未取得"} / ${video.status === "confirmed" ? "確認済み" : "自動候補を含む"}`));
+  const details = directorEl("div", "masterSearchDetails");
+  details.append(masterDetail("ジャンル", genre.value, genre.suggested), masterDetail("出演", members.values.join("、") || "未設定", members.suggested));
+  if (tags.length) details.appendChild(masterDetail("タグ", tags.join("、"), false));
+  body.appendChild(details);
+  row.append(thumbnail, body);
+  return row;
+}
+
+function masterDetail(label, value, suggested) {
+  const detail = directorEl("span", "masterDetail");
+  detail.append(directorEl("b", "", label), document.createTextNode(` ${value}`));
+  if (suggested) detail.appendChild(directorEl("em", "", "自動候補"));
+  return detail;
+}
+
+function renderMemberAppearanceStats(results, note) {
+  const counts = new Map();
+  results.forEach((item) => item.members.values.forEach((member) => counts.set(member, (counts.get(member) || 0) + 1)));
+  const list = document.getElementById("memberAppearanceStats");
+  list.replaceChildren();
+  document.getElementById("appearanceStatsNote").textContent = note;
+  const ranked = [...counts.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], "ja"));
+  if (!ranked.length) {
+    list.appendChild(directorEl("p", "emptyState", "出演メンバーを確認すると、ここに出演回数が表示されます。"));
+    return;
+  }
+  ranked.forEach(([member, count], index) => {
+    const row = directorEl("div", "appearanceRow");
+    row.append(directorEl("span", "appearanceRank", String(index + 1)), directorEl("strong", "", member), directorEl("b", "", `${count}本`));
+    list.appendChild(row);
+  });
 }
 
 function editorField(label, field, value, arrayValue = false) {
@@ -387,6 +513,15 @@ document.getElementById("selectAllReviews").addEventListener("click", () => docu
 document.getElementById("lowConfidenceOnly").addEventListener("change", renderReviews);
 document.getElementById("memberForm").addEventListener("submit", (event) => addMaster(event, "/api/members"));
 document.getElementById("categoryForm").addEventListener("submit", (event) => addMaster(event, "/api/categories"));
+document.getElementById("masterSearchQuery").addEventListener("input", renderMasterSearch);
+document.getElementById("masterMemberFilter").addEventListener("change", renderMasterSearch);
+document.getElementById("masterGenreFilter").addEventListener("change", renderMasterSearch);
+document.getElementById("clearMasterSearch").addEventListener("click", () => {
+  document.getElementById("masterSearchQuery").value = "";
+  document.getElementById("masterMemberFilter").value = "";
+  document.getElementById("masterGenreFilter").value = "";
+  renderMasterSearch();
+});
 document.getElementById("openAdminLogin").addEventListener("click", () => openAdminLogin());
 document.getElementById("cancelAdminLogin").addEventListener("click", closeAdminLogin);
 document.getElementById("adminLogout").addEventListener("click", () => {

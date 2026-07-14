@@ -95,6 +95,20 @@
         <section class="directorPanel"><h2>メンバー</h2><form id="memberForm" class="inlineForm"><input name="name" placeholder="メンバー名" required><button class="primaryButton" type="submit">追加</button></form><div id="memberList" class="chipList"></div></section>
         <section class="directorPanel"><h2>企画ジャンル</h2><form id="categoryForm" class="inlineForm"><input name="name" placeholder="ジャンル名" required><button class="primaryButton" type="submit">追加</button></form><div id="categoryList" class="chipList"></div></section>
       </div>
+      <section class="directorPanel masterSearchPanel">
+        <div class="panelHeader"><div><span class="sectionLabel">検索・出演分析</span><h2>作品・メンバー・ジャンルを横断検索</h2><p class="meta">メンバーを選ぶと出演作品を、ジャンルを選ぶと該当作品と出演メンバーを確認できます。</p></div></div>
+        <div class="masterSearchControls">
+          <label><span>キーワード</span><input id="masterSearchQuery" type="search" placeholder="動画タイトル・メンバー・ジャンルで検索"></label>
+          <label><span>出演メンバー</span><select id="masterMemberFilter"><option value="">すべてのメンバー</option></select></label>
+          <label><span>企画ジャンル</span><select id="masterGenreFilter"><option value="">すべてのジャンル</option></select></label>
+          <button id="clearMasterSearch" class="secondaryButton" type="button">条件をクリア</button>
+        </div>
+        <div id="masterSearchSummary" class="masterSearchSummary" aria-live="polite"></div>
+        <div class="masterSearchGrid">
+          <div class="masterSearchResultsWrap"><div class="panelHeader compactPanelHeader"><h3 id="masterSearchResultsTitle">作品一覧</h3><span id="masterSearchResultLimit" class="meta"></span></div><div id="masterSearchResults" class="masterSearchResults"></div></div>
+          <aside class="appearancePanel"><span class="sectionLabel">出演集計</span><h3>メンバー別出演回数</h3><p id="appearanceStatsNote" class="meta"></p><div id="memberAppearanceStats" class="appearanceStats"></div></aside>
+        </div>
+      </section>
       <section class="directorPanel"><div class="panelHeader"><div><span class="sectionLabel">動画属性</span><h2>確認済み動画も後から修正</h2></div></div><div id="videoAttributeEditor"></div></section>
     </main>
 
