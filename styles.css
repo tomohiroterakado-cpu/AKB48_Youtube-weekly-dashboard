@@ -298,6 +298,30 @@ h2 {
   gap: 12px;
 }
 
+.trendGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.trendGrid .goalCard {
+  min-height: 176px;
+}
+
+.trendGrid h3 {
+  margin-top: 10px;
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.trendDescription {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
 .goalCard {
   padding: 14px;
   border: 1px solid var(--line);
@@ -567,7 +591,8 @@ h2 {
   .summaryBand,
   .mainGrid,
   .splitGrid,
-  .ideaGrid {
+  .ideaGrid,
+  .trendGrid {
     grid-template-columns: 1fr;
   }
 

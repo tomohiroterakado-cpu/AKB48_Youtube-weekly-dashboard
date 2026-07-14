@@ -113,8 +113,9 @@ function renderTrends() {
     top.appendChild(el("span", "", section.note));
     card.appendChild(top);
     card.appendChild(el("h3", "", section.title));
+    if (section.description) card.appendChild(el("p", "trendDescription", section.description));
 
-    section.items.forEach((item) => {
+    (section.items || []).forEach((item) => {
       const row = el("div", "probability");
       const value = item.type === "average"
         ? formatMetric(item.value, item.format)
@@ -261,6 +262,14 @@ function mergeDirectorWeeks(primary, directorData) {
     merged.set(week.key, {
       ...week,
       ...existing,
+      // AI Director側は蓄積シートの週次実績を根拠に結論・示唆・実行案を生成する。
+      // 数値データは下の個別マージ規則で保持し、既存の汎用文言だけを置き換える。
+      headline: week.headline || existing.headline,
+      decisions: week.decisions?.length ? week.decisions : existing.decisions,
+      trend: week.trend?.sections?.length ? week.trend : existing.trend,
+      insights: week.insights?.length ? week.insights : existing.insights,
+      actions: week.actions?.length ? week.actions : existing.actions,
+      ideas: week.ideas?.length ? week.ideas : existing.ideas,
       kpis: mergeWeekKpis(existing.kpis, week.kpis),
       goals: week.goals?.items?.length ? week.goals : existing.goals,
       dailyUnique: existing.dailyUnique?.length ? existing.dailyUnique : week.dailyUnique,
