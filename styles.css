@@ -243,11 +243,11 @@ h2 {
   align-items: center;
   margin-bottom: 18px;
   padding: 24px;
-  border: 1px solid var(--line);
+  border: 1px solid #eabec9;
   border-radius: 8px;
-  background: var(--surface-strong);
-  backdrop-filter: blur(2px);
-  box-shadow: var(--shadow);
+  border-left: 7px solid var(--akb-red);
+  background: #fff0f3;
+  box-shadow: 0 12px 28px rgba(159, 32, 65, 0.12);
 }
 
 .summaryBand h2 {
