@@ -196,6 +196,12 @@ async function commitUpload() {
       valueLine("スキップ", committed.skippedRows),
       valueLine("未確認動画", committed.manualReviewCount)
     );
+    if (committed.legacySync?.error) {
+      result.appendChild(directorEl("p", "warningItem", `週次レポート蓄積シートへの同期に失敗しました: ${committed.legacySync.error}`));
+    } else if (committed.legacySync) {
+      const totals = (committed.legacySync.results || []).map((item) => `${item.sheet}: ${item.inserted}件追加・${item.updated}件更新`).join(" / ");
+      result.appendChild(directorEl("p", "infoItem", `週次レポート蓄積シートへ同期済みです。${totals}`));
+    }
     const next = directorEl("button", "primaryButton", "未確認動画を確認する"); next.type = "button"; next.dataset.route = "review"; next.addEventListener("click", () => showRoute("review")); result.appendChild(next);
   } catch (error) {
     result.prepend(directorEl("p", "errorItem", error.message));
