@@ -31,6 +31,35 @@ test("schema migration can append a header after column Z", () => {
   assert.equal(spreadsheetColumn(27), "AA");
 });
 
+test("schema migration expands an existing sheet before adding a new field", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url, options });
+    const decoded = decodeURIComponent(url);
+    if (decoded.includes("?fields=sheets.properties")) {
+      return new Response(JSON.stringify({
+        sheets: Object.values(TABLES).map((table, index) => ({
+          properties: {
+            sheetId: index + 1,
+            title: table.sheet,
+            gridProperties: { columnCount: table.sheet === "AI_videos" ? 23 : table.fields.length }
+          }
+        }))
+      }), { status: 200 });
+    }
+    if (decoded.includes("AI_videos!1:1")) {
+      return new Response(JSON.stringify({ values: [TABLES.videos.fields.slice(0, -1)] }), { status: 200 });
+    }
+    if (decoded.includes("!1:1")) return new Response(JSON.stringify({ values: [[]] }), { status: 200 });
+    return new Response(JSON.stringify({}), { status: 200 });
+  };
+  const repository = new GoogleSheetsRepository({ spreadsheetId: "test", accessToken: "test", fetchImpl });
+  await repository.ensureSchema();
+  const batchUpdate = calls.find((call) => call.url.includes(":batchUpdate") && JSON.parse(call.options.body).requests[0].updateSheetProperties);
+  assert.equal(JSON.parse(batchUpdate.options.body).requests[0].updateSheetProperties.properties.gridProperties.columnCount, TABLES.videos.fields.length);
+  assert.equal(calls.some((call) => decodeURIComponent(call.url).includes("AI_videos!X1")), true);
+});
+
 test("a Sheets write stages imports as processing before completion", async () => {
   const repository = new GoogleSheetsRepository({ spreadsheetId: "test", accessToken: "test" });
   const state = emptyState();
