@@ -47,6 +47,17 @@ test("legacy synchronization keys normalize dates and YouTube URLs", () => {
   assert.equal(videoKey("https://youtu.be/abcdefghijk"), "abcdefghijk");
 });
 
+test("weekly sheet sync carries forward CSV cumulative progress fields", () => {
+  const weeklyPlan = buildPlans(state, importRecord, { id: "daily_1" })[0];
+  const headers = ["週開始日", "CSV_累計_視聴回数_20260401", "CSV_累計_新しい視聴者数_20260401", "CSV_累計_リピーター_20260401"];
+  const row = Array(headers.length).fill("");
+  weeklyPlan.derive(row, columnsFor(headers), weeklyPlan.records[0], {
+    headerRow: 3,
+    rows: [["CSV_週次集計"], ["説明"], headers, ["2026-06-29", "9234877", "692986", "386374"]]
+  });
+  assert.deepEqual(row, ["", 9756076, 718852, 477047]);
+});
+
 test("legacy daily sheet without a week-start column is synchronized by date", async () => {
   const writes = [];
   const repository = {
