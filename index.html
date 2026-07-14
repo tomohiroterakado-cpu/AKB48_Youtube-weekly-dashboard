@@ -53,7 +53,7 @@
 
     <main id="uploadView" class="directorPage" data-director-view="upload" hidden>
       <div class="directorPageHeader">
-        <div><p class="eyebrow">STEP 1</p><h1>CSVアップロード</h1><p class="meta">同一ファイルはスキップし、更新版は履歴を残して最新版として保存します。</p></div>
+        <div><p class="eyebrow">STEP 1</p><h1>週次CSVアップロード</h1><p class="meta">土曜〜金曜のデータを翌火曜13時以降に、コンテンツ別CSVと日別CSVの2ファイルで取り込みます。</p></div>
       </div>
       <section class="directorPanel uploadPanel">
         <div class="formGrid">
@@ -61,11 +61,18 @@
           <label><span>対象期間の終了日</span><input id="periodEnd" type="date" required></label>
           <label><span>対象チャンネル</span><input id="channelName" value="AKBの素を出すちゃんねる" required></label>
         </div>
-        <label class="fileDrop" for="csvFile">
-          <input id="csvFile" type="file" accept=".csv,text/csv">
-          <strong>表データ.csvを選択</strong>
-          <span>UTF-8・Shift_JISの確認結果と列名エラーを取込前に表示します</span>
-        </label>
+        <div class="fileDropGrid">
+          <label class="fileDrop" for="contentCsvFile">
+            <input id="contentCsvFile" type="file" accept=".csv,text/csv">
+            <strong>1. コンテンツ別CSVを選択</strong>
+            <span>動画ID・動画タイトルを含む表データ.csv</span>
+          </label>
+          <label class="fileDrop" for="dailyCsvFile">
+            <input id="dailyCsvFile" type="file" accept=".csv,text/csv">
+            <strong>2. 日別CSVを選択</strong>
+            <span>日付ごとの視聴者数などを含むCSV</span>
+          </label>
+        </div>
         <div class="commandRow">
           <button id="previewImport" class="primaryButton" type="button">取込内容を確認</button>
         </div>
@@ -191,7 +198,7 @@
 
       <footer class="footer">
         <span id="updatedAt"></span>
-        <span>毎週火曜 15:00 自動更新予定</span>
+        <span>土曜〜金曜集計 / 火曜13:00以降に更新</span>
       </footer>
     </main>
 

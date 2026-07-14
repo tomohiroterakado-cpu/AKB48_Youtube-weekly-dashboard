@@ -4,8 +4,9 @@ const path = require("node:path");
 const { URL } = require("node:url");
 const { JsonRepository } = require("./lib/repository");
 const { GoogleSheetsRepository } = require("./lib/sheets-repository");
-const { commitImport, previewImport } = require("./lib/import-service");
+const { commitImport, commitWeeklyImport, previewImport, previewWeeklyImport } = require("./lib/import-service");
 const { buildDirectorReport } = require("./lib/analysis");
+const { buildWeeklyDashboardData } = require("./lib/weekly-dashboard-report");
 const { confirmVideos, reclassifyUnconfirmedVideos, updateVideoAttributes } = require("./lib/review-service");
 
 const root = __dirname;
@@ -75,9 +76,11 @@ async function handleApi(req, res, pathname) {
   if (req.method === "GET" && pathname === "/api/home") {
     const state = await repository.read();
     const latestImport = [...state.imports].sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)))[0] || null;
+    const latestDailyImport = [...(state.dailyImports || [])].sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)))[0] || null;
     const unconfirmed = state.videos.filter((video) => video.status === "unconfirmed");
     return json(res, 200, {
       latestImport,
+      latestDailyImport,
       importCount: state.imports.length,
       videoCount: state.videos.length,
       unconfirmedVideoCount: unconfirmed.length,
@@ -96,6 +99,9 @@ async function handleApi(req, res, pathname) {
   if (req.method === "GET" && pathname === "/api/ai-director") {
     return json(res, 200, buildDirectorReport(await repository.read()));
   }
+  if (req.method === "GET" && pathname === "/api/weekly-dashboard") {
+    return json(res, 200, buildWeeklyDashboardData(await repository.read()));
+  }
   if (req.method === "POST" && pathname === "/api/admin/session") {
     authorizeWrite(req);
     return json(res, 200, { ok: true, message: "管理モードを開始しました。" });
@@ -108,6 +114,15 @@ async function handleApi(req, res, pathname) {
     authorizeWrite(req);
     const body = await readJson(req);
     return json(res, 200, await commitImport(repository, body, { conflictPolicy: body.conflictPolicy || "version" }));
+  }
+  if (req.method === "POST" && pathname === "/api/weekly-imports/preview") {
+    authorizeWrite(req);
+    return json(res, 200, await previewWeeklyImport(repository, await readJson(req)));
+  }
+  if (req.method === "POST" && pathname === "/api/weekly-imports/commit") {
+    authorizeWrite(req);
+    const body = await readJson(req);
+    return json(res, 200, await commitWeeklyImport(repository, body, { conflictPolicy: body.conflictPolicy || "version" }));
   }
   if (req.method === "GET" && pathname === "/api/videos") {
     const state = await repository.read();

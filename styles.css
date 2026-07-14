@@ -83,6 +83,7 @@ textarea { min-height: 84px; resize: vertical; }
 .fileDrop { display: grid; place-items: center; min-height: 170px; margin: 18px 0; padding: 24px; border: 2px dashed #cfc5bf; border-radius: 8px; background: rgba(255,255,255,.6); cursor: pointer; text-align: center; }
 .fileDrop input { width: auto; min-height: 0; margin-bottom: 14px; }
 .fileDrop span { margin-top: 6px; color: var(--muted); font-size: 12px; }
+.fileDropGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .commandRow { display: flex; flex-wrap: wrap; gap: 8px; }
 .primaryButton, .secondaryButton { min-height: 42px; padding: 9px 14px; border-radius: 6px; font: inherit; font-weight: 800; cursor: pointer; }
 .primaryButton { border: 1px solid var(--akb-red); background: var(--akb-red); color: white; }
@@ -130,7 +131,7 @@ textarea { min-height: 84px; resize: vertical; }
 @media (max-width: 560px) {
   .directorPage { width: min(100% - 20px, 1160px); padding-top: 24px; }
   .directorPageHeader { align-items: flex-start; flex-direction: column; }
-  .workflowGrid, .formGrid, .reviewFieldGrid, .resultGrid, .factGrid { grid-template-columns: 1fr; }
+  .workflowGrid, .formGrid, .fileDropGrid, .reviewFieldGrid, .resultGrid, .factGrid { grid-template-columns: 1fr; }
   .reviewHeading { grid-template-columns: 22px 1fr; }
   .reviewThumb { grid-column: 2; width: 100%; }
 }
