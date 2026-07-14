@@ -248,7 +248,22 @@ function mergeDirectorWeeks(primary, directorData) {
   const base = normalizeLoadedData(primary);
   const director = normalizeLoadedData(directorData);
   const merged = new Map(base.weeks.map((week) => [week.key, week]));
-  director.weeks.forEach((week) => merged.set(week.key, week));
+  director.weeks.forEach((week) => {
+    const existing = merged.get(week.key);
+    if (!existing) {
+      merged.set(week.key, week);
+      return;
+    }
+
+    // Apps Script側は手入力の会員数・目標進捗・長尺平均などを持つ正本。
+    // Cloud Run側は日別CSVなど、正本に未反映の補完データだけを加える。
+    merged.set(week.key, {
+      ...week,
+      ...existing,
+      dailyUnique: existing.dailyUnique?.length ? existing.dailyUnique : week.dailyUnique,
+      topVideos: existing.topVideos?.length ? existing.topVideos : week.topVideos
+    });
+  });
   return {
     source: { ...base.source, ...director.source },
     weeks: [...merged.values()]

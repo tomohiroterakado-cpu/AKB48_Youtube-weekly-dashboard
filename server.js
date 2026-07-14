@@ -7,6 +7,7 @@ const { GoogleSheetsRepository } = require("./lib/sheets-repository");
 const { commitImport, commitWeeklyImport, previewImport, previewWeeklyImport } = require("./lib/import-service");
 const { buildDirectorReport } = require("./lib/analysis");
 const { buildWeeklyDashboardData } = require("./lib/weekly-dashboard-report");
+const { syncLegacyWeeklyReport } = require("./lib/legacy-sheet-sync");
 const { confirmVideos, reclassifyUnconfirmedVideos, updateVideoAttributes } = require("./lib/review-service");
 
 const root = __dirname;
@@ -75,7 +76,9 @@ async function handleApi(req, res, pathname) {
   }
   if (req.method === "GET" && pathname === "/api/home") {
     const state = await repository.read();
-    const latestImport = [...state.imports].sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)))[0] || null;
+    const latestImport = [...state.imports]
+      .filter((item) => item.status !== "error" && item.status !== "processing")
+      .sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)))[0] || null;
     const latestDailyImport = [...(state.dailyImports || [])].sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)))[0] || null;
     const unconfirmed = state.videos.filter((video) => video.status === "unconfirmed");
     return json(res, 200, {
@@ -122,7 +125,14 @@ async function handleApi(req, res, pathname) {
   if (req.method === "POST" && pathname === "/api/weekly-imports/commit") {
     authorizeWrite(req);
     const body = await readJson(req);
-    return json(res, 200, await commitWeeklyImport(repository, body, { conflictPolicy: body.conflictPolicy || "version" }));
+    const result = await commitWeeklyImport(repository, body, { conflictPolicy: body.conflictPolicy || "version" });
+    try { result.legacySync = await syncLegacyWeeklyReport(repository, body); }
+    catch (error) { result.legacySync = { error: error.message }; }
+    return json(res, 200, result);
+  }
+  if (req.method === "POST" && pathname === "/api/weekly-imports/sync-legacy") {
+    authorizeWrite(req);
+    return json(res, 200, await syncLegacyWeeklyReport(repository, await readJson(req)));
   }
   if (req.method === "GET" && pathname === "/api/videos") {
     const state = await repository.read();
