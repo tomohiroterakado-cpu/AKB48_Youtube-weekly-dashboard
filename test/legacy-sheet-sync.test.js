@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildPlans, columnsFor, dateKey, videoKey } = require("../lib/legacy-sheet-sync");
+const { buildPlans, columnsFor, dateKey, syncLegacyWeeklyReport, videoKey } = require("../lib/legacy-sheet-sync");
 
 const importRecord = {
   id: "import_20260704",
@@ -45,4 +45,25 @@ test("legacy synchronization keys normalize dates and YouTube URLs", () => {
   assert.equal(dateKey("2026/7/4"), "2026-07-04");
   assert.equal(videoKey("https://www.youtube.com/watch?v=abcdefghijk"), "abcdefghijk");
   assert.equal(videoKey("https://youtu.be/abcdefghijk"), "abcdefghijk");
+});
+
+test("legacy daily sheet without a week-start column is synchronized by date", async () => {
+  const writes = [];
+  const repository = {
+    read: async () => ({ ...state, imports: [importRecord], dailyImports: [{ id: "daily_1", periodStart: "2026-07-04", periodEnd: "2026-07-10", status: "completed" }] }),
+    readRange: async (range) => {
+      const sheet = range.split("!")[0];
+      const headers = sheet === "CSV_週次集計"
+        ? ["週開始日", "週終了日", "総視聴回数"]
+        : sheet === "CSV_日別"
+          ? ["日付", "ユニーク視聴者数"]
+          : ["週開始日", "動画ID", "企画ジャンル", "高評価数"];
+      return { values: [[sheet], ["説明"], headers] };
+    },
+    batchWriteRanges: async (items) => writes.push(...items)
+  };
+  const result = await syncLegacyWeeklyReport(repository, { periodStart: "2026-07-04", periodEnd: "2026-07-10" });
+  assert.equal(result.results.find((item) => item.sheet === "CSV_日別").inserted, 1);
+  const dailyWrite = writes.find((item) => item.range === "CSV_日別!A4");
+  assert.deepEqual(dailyWrite.values[0], ["2026-07-04", 41014]);
 });
