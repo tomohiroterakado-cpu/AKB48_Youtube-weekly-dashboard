@@ -7,7 +7,7 @@
 ```mermaid
 flowchart LR
   CSV["YouTube Studio CSV"] --> Sheet["Google Sheets<br/>週次レポート蓄積"]
-  Sheet --> Report["毎週火曜13:00<br/>レポート自動化"]
+  Sheet --> Report["毎週火曜日中<br/>レポート自動化"]
   Sheet --> Update["毎週火曜15:00<br/>サイトデータ更新"]
   Update --> Data["data/latest.js"]
   Data --> Deploy["Cloud Run 再デプロイ"]

@@ -8,7 +8,7 @@
 2. Google Cloud Console の Cloud Run で GitHubリポジトリと連携する。
 3. 週次データは Google Apps Script のWebアプリからGoogle SheetsをJSON化して取得する。
 
-この形にすると、毎週火曜13:00にスプレッドシートが更新された後、サイト側は最新データを読み込めます。ローカルPCへのGoogle Cloud CLIインストールは不要です。
+この形にすると、毎週火曜日中にスプレッドシートが更新された後、サイト側は最新データを読み込めます。ローカルPCへのGoogle Cloud CLIインストールは不要です。
 
 ## パターンA: 推奨 / 現在のデザインを活かす
 
