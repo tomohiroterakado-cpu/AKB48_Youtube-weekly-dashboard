@@ -8,6 +8,7 @@ const { commitImport, commitWeeklyImport, previewImport, previewWeeklyImport } =
 const { buildDirectorReport } = require("./lib/analysis");
 const { buildWeeklyDashboardData } = require("./lib/weekly-dashboard-report");
 const { buildReportWithLegacyGoals } = require("./lib/legacy-goals");
+const { approveMarketReport, attachMarketReports, marketReportFromEmail, upsertMarketReport } = require("./lib/market-report");
 const { syncLegacyWeeklyReport } = require("./lib/legacy-sheet-sync");
 const { confirmVideos, reclassifyUnconfirmedVideos, updateVideoAttributes } = require("./lib/review-service");
 
@@ -104,8 +105,33 @@ async function handleApi(req, res, pathname) {
     return json(res, 200, buildDirectorReport(await repository.read()));
   }
   if (req.method === "GET" && pathname === "/api/weekly-dashboard") {
-    const report = buildWeeklyDashboardData(await repository.read());
-    return json(res, 200, await buildReportWithLegacyGoals(repository, report));
+    const state = await repository.read();
+    const report = buildWeeklyDashboardData(state);
+    return json(res, 200, attachMarketReports(await buildReportWithLegacyGoals(repository, report), state.marketReports));
+  }
+  if (req.method === "GET" && pathname === "/api/market-reports") {
+    const state = await repository.read();
+    return json(res, 200, { reports: state.marketReports || [] });
+  }
+  if (req.method === "POST" && pathname === "/api/market-reports/import-gmail") {
+    authorizeWrite(req);
+    const report = marketReportFromEmail(await readJson(req));
+    const state = await repository.read();
+    const weeklyDashboard = await buildReportWithLegacyGoals(repository, buildWeeklyDashboardData(state));
+    const matchingWeek = (weeklyDashboard.weeks || []).some((week) => (
+      week.week?.start === report.periodStart && week.week?.end === report.periodEnd
+    ));
+    if (!matchingWeek) {
+      throw Object.assign(new Error("同じ対象期間の週次CSVが未反映です。先にコンテンツ別CSVと日別CSVを取り込んでから、市場調査レポートを再実行してください。"), { status: 422 });
+    }
+    const result = await repository.mutate((state) => upsertMarketReport(state, report));
+    return json(res, 200, result);
+  }
+  const marketReportApproval = pathname.match(/^\/api\/market-reports\/([^/]+)\/approve$/);
+  if (req.method === "POST" && marketReportApproval) {
+    authorizeWrite(req);
+    const result = await repository.mutate((state) => approveMarketReport(state, decodeURIComponent(marketReportApproval[1])));
+    return json(res, 200, result);
   }
   if (req.method === "POST" && pathname === "/api/admin/session") {
     authorizeWrite(req);

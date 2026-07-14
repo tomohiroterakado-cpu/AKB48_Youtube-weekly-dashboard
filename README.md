@@ -10,6 +10,20 @@
 
 詳しい操作は [docs/operations-manual.md](docs/operations-manual.md) を参照してください。
 
+### Gmailの週次市場調査レポート
+
+週次レポートの企画案の下には、自チャンネルのCSV実績とは別に「外部環境の示唆」を表示します。対象は以下です。
+
+- 競合・参考チャンネル
+- 日本のYouTubeトレンド
+- SNS / 検索トレンド
+
+自チャンネルの数値や企画案と混同しないため、市場情報は必ず「公開情報の参考」または「データ不足のため判定不可」と表示します。SNS・検索データがメールに含まれない週は、推測で補いません。
+
+初回の `2026-07-04〜2026-07-10` は、Gmailで受信した `【週次】AKBの素を出すちゃんねる 市場調査レポート 2026/07/14` の内容を初期登録として反映しています。これはGmail自動取込の実行証跡ではありません。
+
+今後の自動取込は [deploy/apps-script-dashboard-api.gs](deploy/apps-script-dashboard-api.gs) の `syncLatestMarketResearchToDirector` を使用します。Apps Scriptのスクリプトプロパティ `DIRECTOR_ADMIN_TOKEN` にAI Directorの管理コード、`MARKET_REPORT_ALLOWED_SENDERS` に許可する送信元メールを一度だけ登録後、`setupMarketResearchImportTrigger` を実行してください。Gmail受信イベントはないため、1時間ごとに最新の市場調査メールを確認します。同じメールはハッシュ値で重複保存し、異なる修正版メールは既存表示を上書きせず確認待ちとして保存します。対象期間が土曜〜金曜の7日間でない場合、または先に同じ週のCSVが取り込まれていない場合は保存しません。
+
 ## システム構成
 
 - フロントエンド: HTML / CSS / Vanilla JavaScript

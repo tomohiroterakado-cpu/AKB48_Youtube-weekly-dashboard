@@ -110,6 +110,10 @@
         </div>
       </section>
       <section class="directorPanel"><div class="panelHeader"><div><span class="sectionLabel">動画属性</span><h2>確認済み動画も後から修正</h2></div></div><div id="videoAttributeEditor"></div></section>
+      <section class="directorPanel">
+        <div class="panelHeader"><div><span class="sectionLabel">市場調査</span><h2>修正版メールの確認</h2><p class="meta">同じ週の市場調査メールが複数届いた場合だけ、既存表示を上書きせずここで確認します。</p></div></div>
+        <div id="marketReportReviewList" class="marketReviewList"></div>
+      </section>
     </main>
 
     <main id="directorView" class="directorPage" data-director-view="director" hidden>
@@ -208,6 +212,18 @@
           </div>
         </div>
         <div id="ideas" class="ideaGrid"></div>
+      </section>
+
+      <section id="marketReportPanel" class="panel marketReportPanel" hidden>
+        <div class="panelHeader">
+          <div>
+            <span class="sectionLabel">市場調査</span>
+            <h2>外部環境の示唆</h2>
+          </div>
+          <p id="marketReportMeta" class="meta"></p>
+        </div>
+        <p id="marketReportNote" class="marketReportNote"></p>
+        <div id="marketReportSections" class="marketReportGrid"></div>
       </section>
 
       <footer class="footer">

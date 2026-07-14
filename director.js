@@ -1,5 +1,5 @@
 const ADMIN_TOKEN_KEY = "akb-ai-director-admin-token";
-const directorState = { previewPayload: null, reviewVideos: [], videos: [], selectedVideoId: "", masters: { members: [], categories: [] }, adminToken: sessionStorage.getItem(ADMIN_TOKEN_KEY) || "" };
+const directorState = { previewPayload: null, reviewVideos: [], videos: [], selectedVideoId: "", masters: { members: [], categories: [] }, marketReports: [], adminToken: sessionStorage.getItem(ADMIN_TOKEN_KEY) || "" };
 
 function directorEl(tag, className, text) {
   const node = document.createElement(tag);
@@ -330,15 +330,49 @@ async function reclassifyReviews() {
 
 async function loadMasters() {
   try {
-    const payload = await api("/api/videos");
+    const [payload, marketPayload] = await Promise.all([api("/api/videos"), api("/api/market-reports")]);
     directorState.videos = payload.videos;
     directorState.masters = { members: payload.members, categories: payload.categories };
+    directorState.marketReports = marketPayload.reports || [];
     const memberList = document.getElementById("memberList"); memberList.replaceChildren(); payload.members.forEach((item) => memberList.appendChild(directorEl("span", "masterChip", item.name)));
     const categoryList = document.getElementById("categoryList"); categoryList.replaceChildren(); payload.categories.forEach((item) => categoryList.appendChild(directorEl("span", "masterChip", item.name)));
     populateMasterSearchFilters();
     renderMasterSearch();
     renderVideoAttributeEditor();
+    renderMarketReportReviews();
   } catch (error) { document.getElementById("memberList").textContent = error.message; }
+}
+
+function renderMarketReportReviews() {
+  const container = document.getElementById("marketReportReviewList");
+  container.replaceChildren();
+  const pending = directorState.marketReports.filter((report) => report.status === "pending_review");
+  if (!pending.length) {
+    container.appendChild(directorEl("p", "emptyState", "確認待ちの市場調査レポートはありません。"));
+    return;
+  }
+  pending.forEach((report) => {
+    const item = directorEl("article", "marketReviewItem");
+    item.append(
+      directorEl("strong", "", `${report.periodStart}〜${report.periodEnd}`),
+      directorEl("p", "meta", report.subject || "件名なし"),
+      directorEl("p", "meta", `受信日 ${String(report.receivedAt || "").slice(0, 10)} / 既存の表示は変更されていません`)
+    );
+    const approve = directorEl("button", "primaryButton compactButton", "この内容を採用");
+    approve.type = "button";
+    approve.addEventListener("click", () => approveMarketReport(report.id));
+    item.appendChild(approve);
+    container.appendChild(item);
+  });
+}
+
+async function approveMarketReport(reportId) {
+  if (!requireAdmin()) return;
+  try {
+    await api(`/api/market-reports/${encodeURIComponent(reportId)}/approve`, { method: "POST", headers: adminHeaders() });
+    await loadMasters();
+    alert("市場調査レポートを採用しました。週次レポートを更新して確認してください。");
+  } catch (error) { alert(error.message); }
 }
 
 function textList(value) {

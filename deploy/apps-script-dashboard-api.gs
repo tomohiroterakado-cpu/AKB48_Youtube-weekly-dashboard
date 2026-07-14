@@ -3,6 +3,7 @@ const TARGET_DATE = '2027-03-31';
 const REPORT_RECIPIENT = 'tomohiro.terakado@dh2020.co.jp';
 const DASHBOARD_URL = 'https://akb-weekly-dashboard-238040933312.asia-northeast1.run.app';
 const EMAIL_TRIGGER_FUNCTION = 'sendWeeklyDashboardEmail';
+const MARKET_IMPORT_FUNCTION = 'syncLatestMarketResearchToDirector';
 
 const DEFAULT_GOALS = [
   { label: '累計視聴回数', metric: '総視聴回数', target: 20000000, unit: '回', format: 'number' },
@@ -74,6 +75,58 @@ function setupWeeklyDashboardEmailTrigger() {
     .create();
 
   return `毎週火曜15:00のメール通知を設定しました: ${REPORT_RECIPIENT}`;
+}
+
+// 週次市場調査レポートのメールを、AI Directorの外部環境セクションへ保存します。
+// 事前にApps Scriptのプロジェクト設定 > スクリプト プロパティへ
+// DIRECTOR_ADMIN_TOKEN（AI Directorの管理コードと同じ値）と、
+// MARKET_REPORT_ALLOWED_SENDERS（許可する送信元メールをカンマ区切り）を登録してください。
+function syncLatestMarketResearchToDirector() {
+  const token = PropertiesService.getScriptProperties().getProperty('DIRECTOR_ADMIN_TOKEN');
+  if (!token) throw new Error('DIRECTOR_ADMIN_TOKEN が未設定です。スクリプト プロパティに管理コードを登録してください。');
+  const configuredSenders = PropertiesService.getScriptProperties().getProperty('MARKET_REPORT_ALLOWED_SENDERS');
+  const allowedSenders = (configuredSenders || Session.getActiveUser().getEmail())
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  if (!allowedSenders.length) throw new Error('MARKET_REPORT_ALLOWED_SENDERS が未設定です。許可する送信元メールを登録してください。');
+
+  const threads = GmailApp.search('subject:(市場調査レポート) newer_than:30d');
+  const messages = threads.flatMap((thread) => thread.getMessages())
+    .filter((message) => {
+      const from = String(message.getFrom()).match(/<([^>]+)>/)?.[1] || String(message.getFrom());
+      return /市場調査レポート/.test(message.getSubject()) && allowedSenders.includes(from.trim().toLowerCase());
+    })
+    .sort((left, right) => right.getDate().getTime() - left.getDate().getTime());
+  const latest = messages[0];
+  if (!latest) throw new Error('直近30日間に、許可済み送信元からの「市場調査レポート」メールが見つかりません。');
+
+  const response = UrlFetchApp.fetch(`${DASHBOARD_URL}/api/market-reports/import-gmail`, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'X-Admin-Token': token },
+    payload: JSON.stringify({
+      subject: latest.getSubject(),
+      receivedAt: latest.getDate().toISOString(),
+      body: latest.getPlainBody()
+    }),
+    muteHttpExceptions: true
+  });
+  const status = response.getResponseCode();
+  if (status < 200 || status >= 300) throw new Error(`AI Directorへの市場調査取込に失敗しました: ${status} ${response.getContentText()}`);
+  return response.getContentText();
+}
+
+function setupMarketResearchImportTrigger() {
+  ScriptApp.getProjectTriggers()
+    .filter((trigger) => trigger.getHandlerFunction() === MARKET_IMPORT_FUNCTION)
+    .forEach((trigger) => ScriptApp.deleteTrigger(trigger));
+
+  // Gmailは受信時トリガーを持たないため、1時間ごとに最新メールを確認します。
+  // 同じメールはAI Director側でハッシュ判定し、重複保存しません。
+  // 同じ対象期間の別メールは既存表示を上書きせず、確認待ちとして保存されます。
+  ScriptApp.newTrigger(MARKET_IMPORT_FUNCTION).timeBased().everyHours(1).create();
+  return '週次市場調査レポートのGmail取込を1時間ごとに設定しました。';
 }
 
 function buildDashboardData_() {

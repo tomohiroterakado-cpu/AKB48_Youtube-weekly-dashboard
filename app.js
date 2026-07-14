@@ -262,6 +262,40 @@ function renderIdeas() {
   });
 }
 
+function renderMarketReport() {
+  const panel = document.getElementById("marketReportPanel");
+  const marketReport = data.marketReport;
+  if (!marketReport?.data?.sections?.length) {
+    panel.hidden = true;
+    return;
+  }
+
+  panel.hidden = false;
+  document.getElementById("marketReportMeta").textContent = `${marketReport.source || "外部調査"} / ${marketReport.receivedAt ? String(marketReport.receivedAt).slice(0, 10) : "参考情報"}`;
+  document.getElementById("marketReportNote").textContent = marketReport.data.note || "自チャンネルの実績とは分けて表示する参考情報です。";
+  const grid = document.getElementById("marketReportSections");
+  grid.replaceChildren();
+  marketReport.data.sections.forEach((section) => {
+    const card = el("article", "marketReportCard");
+    const header = el("div", "marketReportCardHeader");
+    header.append(el("h3", "", section.title), el("span", `marketStatus ${/判定不可/.test(section.status || "") ? "marketStatus--pending" : ""}`, section.status || "参考情報"));
+    card.appendChild(header);
+    (section.entries || []).forEach((entry) => {
+      const item = el("div", "marketEntry");
+      item.append(el("strong", "", entry.label), el("p", "", entry.text));
+      if (entry.link) {
+        const link = el("a", "marketLink", entry.linkLabel || "参照元を開く");
+        link.href = entry.link;
+        link.target = "_blank";
+        link.rel = "noreferrer";
+        item.appendChild(link);
+      }
+      card.appendChild(item);
+    });
+    grid.appendChild(card);
+  });
+}
+
 let data = window.AKB_WEEKLY_DATA;
 let allWeeks = [];
 
@@ -445,6 +479,7 @@ function renderAll() {
   renderDailyBars();
   renderInsights();
   renderIdeas();
+  renderMarketReport();
 }
 
 function normalizeLoadedData(loadedData) {

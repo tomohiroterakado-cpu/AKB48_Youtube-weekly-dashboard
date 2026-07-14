@@ -13,6 +13,7 @@ test("nested values round-trip through a sheet cell", () => {
 test("missing arrays and objects keep their expected shape", () => {
   assert.deepEqual(parseValue("", "members"), []);
   assert.deepEqual(parseValue("", "summary"), {});
+  assert.deepEqual(parseValue("", "data"), {});
 });
 
 test("boolean cells are restored as booleans", () => {

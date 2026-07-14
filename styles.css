@@ -697,6 +697,25 @@ h2 {
   font-weight: 900;
 }
 
+.marketReportPanel { margin-top: 18px; }
+.marketReportNote { margin: -2px 0 16px; color: var(--muted); font-size: 13px; font-weight: 700; line-height: 1.55; }
+.marketReportGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.marketReportCard { padding: 16px; border: 1px solid var(--line); border-top: 4px solid var(--teal); border-radius: 8px; background: var(--surface-strong); }
+.marketReportCardHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.marketReportCardHeader h3 { margin: 0; font-size: 18px; line-height: 1.35; }
+.marketStatus { flex: 0 0 auto; padding: 4px 6px; border-radius: 4px; background: #e5f4f2; color: #176964; font-size: 10px; font-weight: 900; }
+.marketStatus--pending { background: #fff2dc; color: #855800; }
+.marketEntry { padding: 11px 0; border-top: 1px solid var(--line); }
+.marketEntry:first-of-type { border-top: 0; }
+.marketEntry strong { display: block; font-size: 14px; }
+.marketReviewList { display: grid; gap: 10px; }
+.marketReviewItem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 14px; align-items: center; padding: 14px; border: 1px solid #f1cda0; border-left: 4px solid #d18c1c; background: #fffaf1; }
+.marketReviewItem strong { font-size: 15px; }
+.marketReviewItem .meta { margin: 0; grid-column: 1; }
+.marketReviewItem button { grid-column: 2; grid-row: 1 / span 3; }
+.marketEntry p { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.58; }
+.marketLink { display: inline-block; margin-top: 8px; color: var(--teal); font-size: 12px; font-weight: 900; text-decoration: underline; }
+
 .footer {
   display: flex;
   justify-content: space-between;
@@ -712,6 +731,7 @@ h2 {
   .mainGrid,
   .splitGrid,
   .ideaGrid,
+  .marketReportGrid,
   .trendGrid {
     grid-template-columns: 1fr;
   }
@@ -760,6 +780,9 @@ h2 {
   .barRow {
     grid-template-columns: 64px minmax(0, 1fr) 64px;
   }
+
+  .marketReviewItem { grid-template-columns: 1fr; }
+  .marketReviewItem .meta, .marketReviewItem button { grid-column: auto; grid-row: auto; }
 
   .footer {
     display: grid;
