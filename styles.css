@@ -587,6 +587,17 @@ h2 {
   font-weight: 900;
 }
 
+.videoAdvice {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--teal);
+  background: #eefafa;
+  color: #235e61;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .barChart {
   display: grid;
   gap: 12px;

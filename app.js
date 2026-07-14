@@ -167,11 +167,15 @@ function renderVideos() {
       `${yen.format(video.views)}回`,
       `${yen.format(video.likes)}高評価`,
       `${yen.format(video.comments)}コメント`,
+      video.subscribers !== undefined && video.subscribers !== null ? `チャンネル登録者 ${yen.format(video.subscribers)}` : "",
+      video.subscriberGains !== undefined && video.subscriberGains !== null ? `登録者増加 ${formatSignedValue(video.subscriberGains, "number")}` : "",
+      video.estimatedRevenue !== undefined && video.estimatedRevenue !== null ? `推定 ¥${yen.format(video.estimatedRevenue)}` : "",
       `CTR ${video.ctr}`,
-      video.avg,
-      video.memo
+      video.avg
     ].filter(Boolean).forEach((text) => meta.appendChild(el("span", "metricPill", text)));
     body.appendChild(meta);
+    const advice = video.memo || video.advice;
+    if (advice) body.appendChild(el("p", "videoAdvice", `次の一手: ${advice}`));
     card.appendChild(body);
     list.appendChild(card);
   });
@@ -287,13 +291,31 @@ function mergeDirectorWeeks(primary, directorData) {
       kpis: mergeWeekKpis(existing.kpis, week.kpis),
       goals: week.goals?.items?.length ? week.goals : existing.goals,
       dailyUnique: existing.dailyUnique?.length ? existing.dailyUnique : week.dailyUnique,
-      topVideos: existing.topVideos?.length ? existing.topVideos : week.topVideos
+      topVideos: mergeWeekVideos(existing.topVideos, week.topVideos)
     });
   });
   return {
     source: { ...base.source, ...director.source },
     weeks: [...merged.values()]
   };
+}
+
+function mergeWeekVideos(primaryVideos, directorVideos) {
+  if (!primaryVideos?.length) return directorVideos || [];
+  const directorById = new Map((directorVideos || []).map((video) => [video.id, video]));
+  const select = (value, fallback) => value === undefined || value === null || value === "" ? fallback : value;
+  return primaryVideos.map((video) => {
+    const details = directorById.get(video.id);
+    if (!details) return video;
+    return {
+      ...details,
+      ...video,
+      subscribers: select(video.subscribers, details.subscribers),
+      subscriberGains: select(video.subscriberGains, details.subscriberGains),
+      estimatedRevenue: select(video.estimatedRevenue, details.estimatedRevenue),
+      advice: select(video.advice, details.advice)
+    };
+  });
 }
 
 function mergeWeekKpis(primaryKpis, directorKpis) {

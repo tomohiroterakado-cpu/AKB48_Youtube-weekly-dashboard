@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildWeeklyDashboardData, publishedDateKey } = require("../lib/weekly-dashboard-report");
+const { buildWeeklyDashboardData, publishedDateKey, videoAdvice } = require("../lib/weekly-dashboard-report");
 
 test("long-form likes average only includes videos published during the selected week", () => {
   const state = {
@@ -27,7 +27,7 @@ test("published date parser supports YouTube Studio English date strings", () =>
   assert.equal(publishedDateKey("Jul 4, 2026"), "2026-07-04");
 });
 
-test("weekly report includes YouTube Studio revenue and comment totals", () => {
+test("weekly report keeps revenue and comment data at the content level", () => {
   const state = {
     imports: [{ id: "import_1", periodStart: "2026-07-04", periodEnd: "2026-07-10", uploadedAt: "2026-07-14", status: "completed", summary: { subscribers: 441, estimatedRevenue: 531808.506, comments: 764 } }],
     dailyImports: [],
@@ -36,7 +36,21 @@ test("weekly report includes YouTube Studio revenue and comment totals", () => {
     metrics: []
   };
   const report = buildWeeklyDashboardData(state);
-  assert.deepEqual(report.weeks[0].kpis.find((item) => item.label === "チャンネル登録者"), { label: "チャンネル登録者", value: 441, format: "number", note: "コンテンツ別CSVの指標（締日時点の総数ではありません）" });
-  assert.deepEqual(report.weeks[0].kpis.find((item) => item.label === "週間推定収益"), { label: "週間推定収益", value: 531808.506, format: "yen", note: "YouTube Studioの推定値" });
-  assert.deepEqual(report.weeks[0].kpis.find((item) => item.label === "コメント追加数"), { label: "コメント追加数", value: 764, format: "number", note: "コンテンツ別CSV合計" });
+  assert.equal(report.weeks[0].kpis.some((item) => ["チャンネル登録者", "週間推定収益", "コメント追加数"].includes(item.label)), false);
+  assert.equal(videoAdvice({ ctr: 8.2 }).includes("CTRが高い"), true);
+});
+
+test("top videos retain content-level subscriber and revenue metrics", () => {
+  const state = {
+    imports: [{ id: "import_1", periodStart: "2026-07-04", periodEnd: "2026-07-10", uploadedAt: "2026-07-14", status: "completed", summary: {} }],
+    dailyImports: [],
+    dailyMetrics: [],
+    videos: [{ videoId: "abcdefghijk", title: "確認用動画", publishedAt: "Jul 4, 2026", durationSeconds: 600 }],
+    metrics: [{ importId: "import_1", videoId: "abcdefghijk", current: true, values: { views: 1000, subscribers: 21, subscriberGains: 28, estimatedRevenue: 27872.067, comments: 181, ctr: 4.96 } }]
+  };
+  const video = buildWeeklyDashboardData(state).weeks[0].topVideos[0];
+  assert.equal(video.subscribers, 21);
+  assert.equal(video.subscriberGains, 28);
+  assert.equal(video.estimatedRevenue, 27872.067);
+  assert.match(video.advice, /コメント反応/);
 });
