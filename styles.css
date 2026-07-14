@@ -251,9 +251,38 @@ h2 {
 }
 
 .summaryBand h2 {
-  max-width: 760px;
-  font-size: clamp(22px, 3vw, 36px);
-  line-height: 1.25;
+  max-width: 800px;
+  line-height: 1.35;
+}
+
+.headlineLine {
+  display: block;
+  margin-top: 7px;
+  font-size: clamp(20px, 2.1vw, 28px);
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.headlineLine--lead {
+  margin-top: 0;
+  color: var(--ink);
+  font-size: clamp(22px, 2.35vw, 31px);
+}
+
+.headlineLine--growth {
+  color: #126d68;
+}
+
+.headlineLine--risk {
+  color: #9c2440;
+}
+
+.headlineLine--note {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.45;
 }
 
 .decisionTags {
@@ -305,7 +334,8 @@ h2 {
 }
 
 .trendGrid .goalCard {
-  min-height: 176px;
+  min-height: 192px;
+  padding: 16px;
 }
 
 .trendGrid h3 {
@@ -320,6 +350,58 @@ h2 {
   font-size: 14px;
   font-weight: 700;
   line-height: 1.55;
+}
+
+.trendCard--positive {
+  border-color: #b9ddd8;
+  background: #eff9f7;
+}
+
+.trendCard--attention {
+  border-color: #f0c8d2;
+  background: #fff4f5;
+}
+
+.trendCard--pending {
+  border-color: #ddd7d0;
+  background: #f8f6f3;
+}
+
+.trendRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 10px;
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(34, 31, 32, 0.12);
+}
+
+.trendMetricLabel {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.trendMetricValue {
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.trendRow--positive .trendMetricValue {
+  color: #13766f;
+}
+
+.trendRow--negative .trendMetricValue {
+  color: #b02749;
+}
+
+.trendMetricNote {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.4;
 }
 
 .goalCard {

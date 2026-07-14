@@ -28,7 +28,18 @@ function renderMeta() {
   document.getElementById("decisionTags").replaceChildren();
   document.getElementById("reportMeta").textContent =
     `${data.week.start}〜${data.week.end} / ${data.week.status} / レポート日 ${data.week.reportDate}`;
-  document.getElementById("weeklyHeadline").textContent = data.headline;
+  const headline = document.getElementById("weeklyHeadline");
+  headline.replaceChildren();
+  String(data.headline || "")
+    .split(/(?<=。)/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .forEach((line, index) => {
+      const kind = line.includes("参考値") ? "note"
+        : line.includes("一方") ? "risk"
+          : index === 0 ? "lead" : "growth";
+      headline.appendChild(el("span", `headlineLine headlineLine--${kind}`, line));
+    });
   document.getElementById("updatedAt").textContent = `最終更新: ${data.source.updatedAt}`;
 
   const tags = document.getElementById("decisionTags");
@@ -86,9 +97,9 @@ function formatSignedValue(value, format) {
 function formatComparisonNote(item) {
   if (item.type === "average") return item.note || "";
   const percentText = item.deltaPercent === null || item.deltaPercent === undefined
-    ? "差分率 -"
-    : `差分率 ${formatSignedValue(item.deltaPercent, "percent")}`;
-  return `${percentText} / 基準 ${formatMetric(item.baseline, item.format)}`;
+    ? "増減率 -"
+    : `増減率 ${formatSignedValue(item.deltaPercent, "percent")}`;
+  return `前週 ${formatMetric(item.baseline, item.format)} / ${percentText}`;
 }
 
 function renderTrends() {
@@ -107,7 +118,7 @@ function renderTrends() {
   note.textContent = data.trend.note || "";
 
   sections.forEach((section) => {
-    const card = el("article", "goalCard");
+    const card = el("article", `goalCard trendCard trendCard--${section.tone || "neutral"}`);
     const top = el("div", "goalTop");
     top.appendChild(el("span", "", section.label));
     top.appendChild(el("span", "", section.note));
@@ -116,11 +127,14 @@ function renderTrends() {
     if (section.description) card.appendChild(el("p", "trendDescription", section.description));
 
     (section.items || []).forEach((item) => {
-      const row = el("div", "probability");
+      const direction = Number(item.delta) < 0 ? "negative" : "positive";
+      const row = el("div", `trendRow trendRow--${direction}`);
       const value = item.type === "average"
         ? formatMetric(item.value, item.format)
         : formatSignedValue(item.delta, item.format);
-      row.textContent = `${item.label}: ${value} / ${formatComparisonNote(item)}`;
+      row.appendChild(el("span", "trendMetricLabel", item.label));
+      row.appendChild(el("strong", "trendMetricValue", value));
+      row.appendChild(el("span", "trendMetricNote", formatComparisonNote(item)));
       card.appendChild(row);
     });
 
