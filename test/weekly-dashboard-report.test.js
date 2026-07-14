@@ -55,6 +55,16 @@ test("top videos retain content-level subscriber and revenue metrics", () => {
   assert.match(video.advice, /コメント反応/);
 });
 
+test("top video publication dates retain the full date before display formatting", () => {
+  const state = {
+    imports: [{ id: "import_1", periodStart: "2026-07-04", periodEnd: "2026-07-10", uploadedAt: "2026-07-14", status: "completed", summary: {} }],
+    dailyImports: [], dailyMetrics: [],
+    videos: [{ videoId: "abcdefghijk", title: "公開日確認", publishedAt: "Jul 4, 2026", durationSeconds: 600 }],
+    metrics: [{ importId: "import_1", videoId: "abcdefghijk", current: true, values: { views: 1000 } }]
+  };
+  assert.equal(buildWeeklyDashboardData(state).weeks[0].topVideos[0].publishDate, "2026-07-04");
+});
+
 test("top videos are unique, omit unlisted videos, and retain duration metrics", () => {
   const state = {
     imports: [{ id: "import_1", periodStart: "2026-07-04", periodEnd: "2026-07-10", uploadedAt: "2026-07-14", status: "completed", summary: {} }],

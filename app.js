@@ -33,6 +33,11 @@ function formatAverageViewDuration(value) {
   return text.replace(/^0:/, "");
 }
 
+function formatPublishDate(value) {
+  const iso = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return iso ? `${Number(iso[2])}/${Number(iso[3])}` : String(value || "");
+}
+
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -178,7 +183,7 @@ function renderVideos() {
     body.appendChild(el("div", "videoTitle", video.title));
     const meta = el("div", "videoMeta");
     [
-      video.publishDate ? `公開日 ${video.publishDate}` : "",
+      video.publishDate ? `公開日 ${formatPublishDate(video.publishDate)}` : "",
       video.durationSeconds ? `動画尺 ${formatVideoDuration(video.durationSeconds)}` : "",
       video.averageViewDuration ? `平均視聴時間 ${formatAverageViewDuration(video.averageViewDuration)}` : "",
       `${yen.format(video.views)}回`,
