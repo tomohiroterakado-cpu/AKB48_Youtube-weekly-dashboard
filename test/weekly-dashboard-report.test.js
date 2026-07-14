@@ -26,3 +26,16 @@ test("long-form likes average only includes videos published during the selected
 test("published date parser supports YouTube Studio English date strings", () => {
   assert.equal(publishedDateKey("Jul 4, 2026"), "2026-07-04");
 });
+
+test("weekly report includes YouTube Studio revenue and comment totals", () => {
+  const state = {
+    imports: [{ id: "import_1", periodStart: "2026-07-04", periodEnd: "2026-07-10", uploadedAt: "2026-07-14", status: "completed", summary: { estimatedRevenue: 531808.506, comments: 764 } }],
+    dailyImports: [],
+    dailyMetrics: [],
+    videos: [],
+    metrics: []
+  };
+  const report = buildWeeklyDashboardData(state);
+  assert.deepEqual(report.weeks[0].kpis.find((item) => item.label === "週間推定収益"), { label: "週間推定収益", value: 531808.506, format: "yen", note: "YouTube Studioの推定値" });
+  assert.deepEqual(report.weeks[0].kpis.find((item) => item.label === "コメント追加数"), { label: "コメント追加数", value: 764, format: "number", note: "コンテンツ別CSV合計" });
+});

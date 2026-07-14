@@ -7,7 +7,7 @@ const importRecord = {
   periodStart: "2026-07-04",
   periodEnd: "2026-07-10",
   uploadedAt: "2026-07-14T03:15:00.000Z",
-  summary: { views: 521199, likes: 10128, newViewers: 25866, returningViewers: 90673 }
+  summary: { views: 521199, likes: 10128, newViewers: 25866, returningViewers: 90673, subscribers: 441, estimatedRevenue: 531808.506, comments: 764 }
 };
 
 const state = {
@@ -39,6 +39,18 @@ test("legacy sheet sync builds weekly, content, video, and daily plans", () => {
   const daily = Array(6).fill("");
   plans[3].apply(daily, columnsFor(["週開始日", "日付", "ユニーク視聴者数"]), plans[3].records[0]);
   assert.deepEqual(daily.slice(0, 3), ["2026-07-04", "2026-07-04", 41014]);
+});
+
+test("legacy sheet sync maps subscriber, revenue, and YouTube Studio comment headers", () => {
+  const plans = buildPlans(state, importRecord, { id: "daily_1" });
+  const headers = ["週開始日", "チャンネル登録者", "推定収益 (JPY)", "コメントの追加回数"];
+  const weekly = Array(headers.length).fill("");
+  plans[0].apply(weekly, columnsFor(headers), plans[0].records[0]);
+  assert.deepEqual(weekly, ["2026-07-04", 441, 531808.506, 764]);
+
+  const content = Array(headers.length).fill("");
+  plans[1].apply(content, columnsFor(headers), { metric: { ...plans[1].records[0].metric, values: { subscribers: 21, estimatedRevenue: 27872.067, comments: 181 } }, video: plans[1].records[0].video });
+  assert.deepEqual(content, ["2026-07-04", 21, 27872.067, 181]);
 });
 
 test("legacy synchronization keys normalize dates and YouTube URLs", () => {
@@ -77,4 +89,21 @@ test("legacy daily sheet without a week-start column is synchronized by date", a
   assert.equal(result.results.find((item) => item.sheet === "CSV_日別").inserted, 1);
   const dailyWrite = writes.find((item) => item.range === "CSV_日別!A4");
   assert.deepEqual(dailyWrite.values[0], ["2026-07-04", 41014]);
+});
+
+test("legacy synchronization safely adds missing content metric headers", async () => {
+  const writes = [];
+  const repository = {
+    read: async () => ({ ...state, imports: [importRecord], dailyImports: [{ id: "daily_1", periodStart: "2026-07-04", periodEnd: "2026-07-10", status: "completed" }] }),
+    readRange: async (range) => {
+      const sheet = range.split("!")[0];
+      const headers = sheet === "CSV_日別" ? ["日付", "ユニーク視聴者数"] : ["週開始日", "動画ID"];
+      return { values: [[sheet], ["説明"], headers] };
+    },
+    batchWriteRanges: async (items) => writes.push(...items)
+  };
+  const result = await syncLegacyWeeklyReport(repository, { periodStart: "2026-07-04", periodEnd: "2026-07-10" });
+  const weekly = result.results.find((item) => item.sheet === "CSV_週次集計");
+  assert.deepEqual(weekly.addedHeaders, ["チャンネル登録者", "推定収益 (JPY)", "コメントの追加回数"]);
+  assert.deepEqual(writes.find((item) => item.range === "CSV_週次集計!C3").values[0], weekly.addedHeaders);
 });

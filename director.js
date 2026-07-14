@@ -160,7 +160,12 @@ async function previewUpload() {
     if (preview.daily.missingMetricColumns?.length) result.appendChild(directorEl("p", "warningItem", `日別CSVにない指標: ${preview.daily.missingMetricColumns.join("、")}。該当指標は表示しません。`));
     if (preview.content.unknownHeaders?.length || preview.daily.unknownHeaders?.length) result.appendChild(directorEl("p", "infoItem", `未使用列: ${[...preview.content.unknownHeaders, ...preview.daily.unknownHeaders].join("、")}`));
     if (preview.content.recoveryImportId) result.appendChild(directorEl("p", "warningItem", "前回のコンテンツCSV保存が途中で中断されています。同じ取込IDで安全に再実行します。"));
-    if (!preview.duplicate) {
+    if (preview.duplicate) {
+      const sync = directorEl("button", "secondaryButton", "蓄積シート・レポートを再同期");
+      sync.type = "button";
+      sync.addEventListener("click", syncLegacyReport);
+      result.appendChild(sync);
+    } else {
       const policy = directorEl("label", "policyControl");
       policy.appendChild(directorEl("span", "", "同じ期間・動画がある場合"));
       const select = directorEl("select", "");
@@ -177,6 +182,28 @@ async function previewUpload() {
     }
   } catch (error) {
     result.replaceChildren(directorEl("p", "errorItem", error.message));
+  }
+}
+
+async function syncLegacyReport() {
+  if (!requireAdmin()) return;
+  const result = document.getElementById("importResult");
+  try {
+    const synced = await api("/api/weekly-imports/sync-legacy", {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        periodStart: directorState.previewPayload.periodStart,
+        periodEnd: directorState.previewPayload.periodEnd
+      })
+    });
+    const totals = (synced.results || []).map((item) => {
+      const added = item.addedHeaders?.length ? ` / 列追加: ${item.addedHeaders.join("、")}` : "";
+      return `${item.sheet}: ${item.inserted}件追加・${item.updated}件更新${added}`;
+    }).join(" / ");
+    result.appendChild(directorEl("p", "infoItem", `週次レポート蓄積シートを再同期しました。${totals}`));
+  } catch (error) {
+    result.appendChild(directorEl("p", "errorItem", `再同期に失敗しました: ${error.message}`));
   }
 }
 
