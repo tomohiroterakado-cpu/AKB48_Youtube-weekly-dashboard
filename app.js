@@ -178,17 +178,17 @@ function renderVideos() {
     body.appendChild(el("div", "videoTitle", video.title));
     const meta = el("div", "videoMeta");
     [
-      `公開日 ${video.publishDate || "-"}`,
-      `動画尺 ${formatVideoDuration(video.durationSeconds)}`,
-      `平均視聴時間 ${formatAverageViewDuration(video.averageViewDuration)}`,
-      `${yen.format(Number(video.views || 0))}回`,
-      `${yen.format(Number(video.likes || 0))}高評価`,
-      `${yen.format(Number(video.comments || 0))}コメント`,
-      `チャンネル登録者 ${video.subscribers !== undefined && video.subscribers !== null ? yen.format(video.subscribers) : "-"}`,
-      `登録者増加 ${video.subscriberGains !== undefined && video.subscriberGains !== null ? formatSignedValue(video.subscriberGains, "number") : "-"}`,
-      `推定 ${video.estimatedRevenue !== undefined && video.estimatedRevenue !== null ? `¥${yen.format(video.estimatedRevenue)}` : "-"}`,
-      `CTR ${video.ctr || "-"}`
-    ].forEach((text) => meta.appendChild(el("span", "metricPill", text)));
+      video.publishDate ? `公開日 ${video.publishDate}` : "",
+      video.durationSeconds ? `動画尺 ${formatVideoDuration(video.durationSeconds)}` : "",
+      video.averageViewDuration ? `平均視聴時間 ${formatAverageViewDuration(video.averageViewDuration)}` : "",
+      `${yen.format(video.views)}回`,
+      `${yen.format(video.likes)}高評価`,
+      `${yen.format(video.comments)}コメント`,
+      video.subscribers !== undefined && video.subscribers !== null ? `チャンネル登録者 ${yen.format(video.subscribers)}` : "",
+      video.subscriberGains !== undefined && video.subscriberGains !== null ? `登録者増加 ${formatSignedValue(video.subscriberGains, "number")}` : "",
+      video.estimatedRevenue !== undefined && video.estimatedRevenue !== null ? `推定 ¥${yen.format(video.estimatedRevenue)}` : "",
+      video.ctr ? `CTR ${video.ctr}` : ""
+    ].filter(Boolean).forEach((text) => meta.appendChild(el("span", "metricPill", text)));
     body.appendChild(meta);
     const advice = video.memo || video.advice;
     if (advice) body.appendChild(el("p", "videoAdvice", `次の一手: ${advice}`));
