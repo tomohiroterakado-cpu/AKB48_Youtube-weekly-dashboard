@@ -34,8 +34,16 @@ function formatAverageViewDuration(value) {
 }
 
 function formatPublishDate(value) {
-  const iso = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return iso ? `${Number(iso[2])}/${Number(iso[3])}` : String(value || "");
+  const text = String(value || "").trim();
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return `${Number(iso[2])}/${Number(iso[3])}`;
+
+  // Older imported rows may have a truncated English year, such as "Jul 4, 202".
+  const english = text.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})(?:,.*)?$/i);
+  if (!english) return text;
+  const month = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+    .indexOf(english[1].toLowerCase()) + 1;
+  return `${month}/${Number(english[2])}`;
 }
 
 function el(tag, className, text) {
