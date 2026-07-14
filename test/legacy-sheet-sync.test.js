@@ -25,6 +25,8 @@ const state = {
 test("legacy sheet sync builds weekly, content, video, and daily plans", () => {
   const plans = buildPlans(state, importRecord, { id: "daily_1" });
   assert.deepEqual(plans.map((plan) => plan.sheet), ["CSV_週次集計", "CSV_貼付用", "自チャンネル動画", "CSV_日別"]);
+  assert.equal(plans[3].requiresWeekStart, false);
+  assert.equal(plans[3].keyForRecord(plans[3].records[0]), "2026-07-04");
 
   const weekly = Array(10).fill("");
   plans[0].apply(weekly, columnsFor(["週開始日", "総視聴回数", "新しい視聴者数"]), plans[0].records[0]);
