@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { commitImport, previewImport } = require("../lib/import-service");
+const { commitImport, commitWeeklyImport, previewImport, previewWeeklyImport } = require("../lib/import-service");
 const { MemoryRepository } = require("../lib/repository");
 
 const csv = "コンテンツ,動画のタイトル,動画公開時刻,長さ,視聴回数\nabcdefghijk,【初公開】山内瑞葵が対決,Jul 4 2026,900,1000\n";
@@ -92,4 +92,39 @@ test("an interrupted import is resumed under the original import id", async () =
   assert.equal(completed[0].status, "completed");
   assert.equal(result.manualReviewCount, 1);
   assert.equal(metrics.filter((item) => item.current).length, 1);
+});
+
+const weeklyBase = {
+  contentFileName: "コンテンツ別.csv",
+  contentCsvText: csv,
+  dailyFileName: "日別.csv",
+  dailyCsvText: "日付,ユニーク視聴者数,視聴回数\n2026-07-04,100,300\n2026-07-05,110,320\n2026-07-06,120,340\n2026-07-07,130,360\n2026-07-08,140,380\n2026-07-09,150,400\n2026-07-10,160,420\n",
+  periodStart: "2026-07-04",
+  periodEnd: "2026-07-10",
+  channel: "AKBの素を出すちゃんねる"
+};
+
+test("weekly import stores content and daily CSVs separately", async () => {
+  const repository = new MemoryRepository();
+  const result = await commitWeeklyImport(repository, weeklyBase);
+  const state = await repository.read();
+  assert.equal(result.status, "completed");
+  assert.equal(state.imports.length, 1);
+  assert.equal(state.dailyImports.length, 1);
+  assert.equal(state.dailyMetrics.length, 7);
+  assert.equal(state.dailyMetrics.find((item) => item.date === "2026-07-10").values.uniqueViewers, 160);
+});
+
+test("weekly import rejects a period that is not Saturday through Friday", async () => {
+  const repository = new MemoryRepository();
+  await assert.rejects(previewWeeklyImport(repository, { ...weeklyBase, periodStart: "2026-07-05", periodEnd: "2026-07-11" }), /土曜日開始・金曜日終了/);
+});
+
+test("same weekly CSV pair is skipped without duplicate daily rows", async () => {
+  const repository = new MemoryRepository();
+  await commitWeeklyImport(repository, weeklyBase);
+  const result = await commitWeeklyImport(repository, weeklyBase);
+  const state = await repository.read();
+  assert.equal(result.status, "skipped_duplicate");
+  assert.equal(state.dailyMetrics.length, 7);
 });

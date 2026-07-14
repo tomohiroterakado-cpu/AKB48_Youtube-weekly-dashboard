@@ -116,16 +116,19 @@ function valueLine(label, value) {
 }
 
 async function readSelectedCsv() {
-  const file = document.getElementById("csvFile").files[0];
-  if (!file) throw new Error("表データ.csvを選択してください。");
-  let csvText = await file.text();
-  if (csvText.includes("�")) throw new Error("文字コードをUTF-8で書き出してください。文字化けを検出しました。");
+  const contentFile = document.getElementById("contentCsvFile").files[0];
+  const dailyFile = document.getElementById("dailyCsvFile").files[0];
+  if (!contentFile || !dailyFile) throw new Error("コンテンツ別CSVと日別CSVの2ファイルを選択してください。");
+  const [contentCsvText, dailyCsvText] = await Promise.all([contentFile.text(), dailyFile.text()]);
+  if (contentCsvText.includes("�") || dailyCsvText.includes("�")) throw new Error("文字コードをUTF-8で書き出してください。文字化けを検出しました。");
   const payload = {
-    fileName: file.name,
+    contentFileName: contentFile.name,
+    contentCsvText,
+    dailyFileName: dailyFile.name,
+    dailyCsvText,
     periodStart: document.getElementById("periodStart").value,
     periodEnd: document.getElementById("periodEnd").value,
-    channel: document.getElementById("channelName").value.trim(),
-    csvText
+    channel: document.getElementById("channelName").value.trim()
   };
   if (!payload.periodStart || !payload.periodEnd) throw new Error("対象期間を入力してください。");
   return payload;
@@ -138,22 +141,25 @@ async function previewUpload() {
   result.replaceChildren(directorEl("p", "meta", "CSVを検査しています..."));
   try {
     directorState.previewPayload = await readSelectedCsv();
-    const preview = await api("/api/imports/preview", { method: "POST", headers: adminHeaders(), body: JSON.stringify(directorState.previewPayload) });
+    const preview = await api("/api/weekly-imports/preview", { method: "POST", headers: adminHeaders(), body: JSON.stringify(directorState.previewPayload) });
     result.replaceChildren();
-    result.appendChild(directorEl("h2", "", preview.duplicate ? "同じCSVは取込済みです" : "取込前の確認"));
+    result.appendChild(directorEl("h2", "", preview.duplicate ? "同じ2ファイルは取込済みです" : "取込前の確認"));
     const grid = directorEl("div", "resultGrid");
     grid.append(
-      valueLine("CSV行数", preview.parsedRows),
-      valueLine("動画行数", preview.videoRows),
-      valueLine("新規動画", preview.newVideoCount),
-      valueLine("既存動画", preview.updatedVideoCount),
-      valueLine("同期間の重複", preview.conflictCount),
+      valueLine("コンテンツCSV行数", preview.content.parsedRows),
+      valueLine("動画行数", preview.content.videoRows),
+      valueLine("日別CSV行数", preview.daily.dailyRows),
+      valueLine("新規動画", preview.content.newVideoCount),
+      valueLine("既存動画", preview.content.updatedVideoCount),
+      valueLine("同期間の重複", preview.content.conflictCount + preview.daily.conflictCount),
       valueLine("手動確認が必要", preview.manualReviewCount)
     );
     result.appendChild(grid);
-    if (Object.keys(preview.missingCounts || {}).length) result.appendChild(directorEl("p", "warningItem", `欠損項目: ${Object.entries(preview.missingCounts).map(([key, count]) => `${key} ${count}件`).join("、")}`));
-    if (preview.unknownHeaders?.length) result.appendChild(directorEl("p", "infoItem", `未使用列: ${preview.unknownHeaders.join("、")}`));
-    if (preview.recoveryImportId) result.appendChild(directorEl("p", "warningItem", "前回のSheets保存が途中で中断されています。同じ取込IDで安全に再実行します。"));
+    if (Object.keys(preview.content.missingCounts || {}).length) result.appendChild(directorEl("p", "warningItem", `コンテンツCSVの欠損項目: ${Object.entries(preview.content.missingCounts).map(([key, count]) => `${key} ${count}件`).join("、")}`));
+    if (preview.daily.missingDates?.length) result.appendChild(directorEl("p", "warningItem", `日別CSVにない日付: ${preview.daily.missingDates.join("、")}。日別グラフは参考値として表示します。`));
+    if (preview.daily.missingMetricColumns?.length) result.appendChild(directorEl("p", "warningItem", `日別CSVにない指標: ${preview.daily.missingMetricColumns.join("、")}。該当指標は表示しません。`));
+    if (preview.content.unknownHeaders?.length || preview.daily.unknownHeaders?.length) result.appendChild(directorEl("p", "infoItem", `未使用列: ${[...preview.content.unknownHeaders, ...preview.daily.unknownHeaders].join("、")}`));
+    if (preview.content.recoveryImportId) result.appendChild(directorEl("p", "warningItem", "前回のコンテンツCSV保存が途中で中断されています。同じ取込IDで安全に再実行します。"));
     if (!preview.duplicate) {
       const policy = directorEl("label", "policyControl");
       policy.appendChild(directorEl("span", "", "同じ期間・動画がある場合"));
@@ -179,9 +185,17 @@ async function commitUpload() {
   const result = document.getElementById("importResult");
   try {
     const payload = { ...directorState.previewPayload, conflictPolicy: document.getElementById("conflictPolicy")?.value || "version" };
-    const committed = await api("/api/imports/commit", { method: "POST", headers: adminHeaders(), body: JSON.stringify(payload) });
+    const committed = await api("/api/weekly-imports/commit", { method: "POST", headers: adminHeaders(), body: JSON.stringify(payload) });
     result.replaceChildren(directorEl("h2", "", "取込が完了しました"));
-    result.append(valueLine("正常取込", committed.importedRows), valueLine("新規動画", committed.newVideoCount), valueLine("更新動画", committed.updatedVideoCount), valueLine("スキップ", committed.skippedRows), valueLine("未確認動画", committed.manualReviewCount));
+    result.append(
+      valueLine("正常取込", committed.importedRows),
+      valueLine("コンテンツCSV", committed.content?.status === "skipped_duplicate" ? "既存を利用" : `${committed.content?.importedRows || 0}動画`),
+      valueLine("日別CSV", committed.daily?.status === "skipped_duplicate" ? "既存を利用" : `${committed.daily?.importedRows || 0}日分`),
+      valueLine("新規動画", committed.newVideoCount),
+      valueLine("更新動画", committed.updatedVideoCount),
+      valueLine("スキップ", committed.skippedRows),
+      valueLine("未確認動画", committed.manualReviewCount)
+    );
     const next = directorEl("button", "primaryButton", "未確認動画を確認する"); next.type = "button"; next.dataset.route = "review"; next.addEventListener("click", () => showRoute("review")); result.appendChild(next);
   } catch (error) {
     result.prepend(directorEl("p", "errorItem", error.message));

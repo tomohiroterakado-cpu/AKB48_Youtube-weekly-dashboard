@@ -217,22 +217,42 @@ let data = window.AKB_WEEKLY_DATA;
 let allWeeks = [];
 
 async function loadData() {
-  if (!window.AKB_DATA_ENDPOINT) return data;
-
-  try {
-    const response = await fetch(window.AKB_DATA_ENDPOINT, { cache: "no-store" });
-    if (!response.ok) throw new Error(`Data endpoint returned ${response.status}`);
-    return await response.json();
-  } catch (error) {
-    console.warn("Fetch data endpoint failed. Trying script fallback.", error);
+  let primary = data;
+  if (window.AKB_DATA_ENDPOINT) {
+    try {
+      const response = await fetch(window.AKB_DATA_ENDPOINT, { cache: "no-store" });
+      if (!response.ok) throw new Error(`Data endpoint returned ${response.status}`);
+      primary = await response.json();
+    } catch (error) {
+      console.warn("Fetch data endpoint failed. Trying script fallback.", error);
+      try {
+        primary = await loadDataViaScript(window.AKB_DATA_ENDPOINT);
+      } catch (fallbackError) {
+        console.warn("Falling back to bundled dashboard data.", fallbackError);
+      }
+    }
   }
 
+  if (!window.AKB_DIRECTOR_ENDPOINT) return primary;
   try {
-    return await loadDataViaScript(window.AKB_DATA_ENDPOINT);
+    const response = await fetch(window.AKB_DIRECTOR_ENDPOINT, { cache: "no-store" });
+    if (!response.ok) throw new Error(`Director endpoint returned ${response.status}`);
+    return mergeDirectorWeeks(primary, await response.json());
   } catch (error) {
-    console.warn("Falling back to bundled dashboard data.", error);
-    return data;
+    console.warn("Director weekly data is unavailable. Using dashboard data only.", error);
+    return primary;
   }
+}
+
+function mergeDirectorWeeks(primary, directorData) {
+  const base = normalizeLoadedData(primary);
+  const director = normalizeLoadedData(directorData);
+  const merged = new Map(base.weeks.map((week) => [week.key, week]));
+  director.weeks.forEach((week) => merged.set(week.key, week));
+  return {
+    source: { ...base.source, ...director.source },
+    weeks: [...merged.values()]
+  };
 }
 
 function loadDataViaScript(endpoint) {
