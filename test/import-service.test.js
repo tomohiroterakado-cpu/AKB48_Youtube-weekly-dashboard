@@ -76,6 +76,17 @@ test("confirmed video attributes are not overwritten by a later import", async (
   assert.equal(state.classifications.length, 1);
 });
 
+test("visibility is imported without overwriting a manually confirmed visibility", async () => {
+  const repository = new MemoryRepository();
+  await commitImport(repository, { ...base, csvText: "動画ID,動画タイトル,公開日時,公開設定\nabcdefghijk,テスト,Jul 4 2026,限定公開\n" });
+  let state = await repository.read();
+  assert.equal(state.videos[0].visibility, "限定公開");
+  await repository.mutate((draft) => { draft.videos[0].visibility = "公開"; });
+  await commitImport(repository, { ...base, fileName: "翌週.csv", periodStart: "2026-07-06", periodEnd: "2026-07-12", csvText: "動画ID,動画タイトル,公開日時,公開設定\nabcdefghijk,テスト,Jul 4 2026,限定公開\n" });
+  state = await repository.read();
+  assert.equal(state.videos[0].visibility, "公開");
+});
+
 test("an interrupted import is resumed under the original import id", async () => {
   const repository = new MemoryRepository();
   const processingId = "import_processing";

@@ -490,6 +490,7 @@ function renderVideoAttributeEditor() {
   const fields = directorEl("div", "reviewFieldGrid");
   fields.append(
     editorField("動画形式", "format", video.format),
+    editorField("公開設定（公開／限定公開／非公開）", "visibility", video.visibility || "未確認"),
     editorField("企画ジャンル", "genre", video.genre),
     editorField("サブジャンル", "subgenre", video.subgenre),
     editorField("出演メンバー（、区切り）", "members", video.members, true),

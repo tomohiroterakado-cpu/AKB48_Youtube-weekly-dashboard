@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { cellValue, GoogleSheetsRepository, parseValue, TABLES } = require("../lib/sheets-repository");
+const { cellValue, GoogleSheetsRepository, parseValue, spreadsheetColumn, TABLES } = require("../lib/sheets-repository");
 const { emptyState } = require("../lib/repository");
 
 test("nested values round-trip through a sheet cell", () => {
@@ -23,6 +23,12 @@ test("boolean cells are restored as booleans", () => {
 test("unexpected list values are serialized before writing to Sheets", () => {
   assert.equal(cellValue(["2026-07-04", "2026-07-05"], "unmappedField"), '["2026-07-04","2026-07-05"]');
   assert.equal(cellValue({ note: "test" }, "unmappedField"), '{"note":"test"}');
+});
+
+test("schema migration can append a header after column Z", () => {
+  assert.equal(spreadsheetColumn(1), "A");
+  assert.equal(spreadsheetColumn(26), "Z");
+  assert.equal(spreadsheetColumn(27), "AA");
 });
 
 test("a Sheets write stages imports as processing before completion", async () => {

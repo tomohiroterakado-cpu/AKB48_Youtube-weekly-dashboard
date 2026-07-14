@@ -17,6 +17,22 @@ function formatMetric(value, format) {
   return yen.format(value);
 }
 
+function formatVideoDuration(value) {
+  const totalSeconds = Number(value || 0);
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return "-";
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}` : `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatAverageViewDuration(value) {
+  const text = String(value || "").trim();
+  if (!text) return "-";
+  if (/^\d+$/.test(text)) return formatVideoDuration(text);
+  return text.replace(/^0:/, "");
+}
+
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -162,17 +178,17 @@ function renderVideos() {
     body.appendChild(el("div", "videoTitle", video.title));
     const meta = el("div", "videoMeta");
     [
-      video.publishDate ? `公開日 ${video.publishDate}` : "",
-      video.genre,
-      `${yen.format(video.views)}回`,
-      `${yen.format(video.likes)}高評価`,
-      `${yen.format(video.comments)}コメント`,
-      video.subscribers !== undefined && video.subscribers !== null ? `チャンネル登録者 ${yen.format(video.subscribers)}` : "",
-      video.subscriberGains !== undefined && video.subscriberGains !== null ? `登録者増加 ${formatSignedValue(video.subscriberGains, "number")}` : "",
-      video.estimatedRevenue !== undefined && video.estimatedRevenue !== null ? `推定 ¥${yen.format(video.estimatedRevenue)}` : "",
-      `CTR ${video.ctr}`,
-      video.avg
-    ].filter(Boolean).forEach((text) => meta.appendChild(el("span", "metricPill", text)));
+      `公開日 ${video.publishDate || "-"}`,
+      `動画尺 ${formatVideoDuration(video.durationSeconds)}`,
+      `平均視聴時間 ${formatAverageViewDuration(video.averageViewDuration)}`,
+      `${yen.format(Number(video.views || 0))}回`,
+      `${yen.format(Number(video.likes || 0))}高評価`,
+      `${yen.format(Number(video.comments || 0))}コメント`,
+      `チャンネル登録者 ${video.subscribers !== undefined && video.subscribers !== null ? yen.format(video.subscribers) : "-"}`,
+      `登録者増加 ${video.subscriberGains !== undefined && video.subscriberGains !== null ? formatSignedValue(video.subscriberGains, "number") : "-"}`,
+      `推定 ${video.estimatedRevenue !== undefined && video.estimatedRevenue !== null ? `¥${yen.format(video.estimatedRevenue)}` : "-"}`,
+      `CTR ${video.ctr || "-"}`
+    ].forEach((text) => meta.appendChild(el("span", "metricPill", text)));
     body.appendChild(meta);
     const advice = video.memo || video.advice;
     if (advice) body.appendChild(el("p", "videoAdvice", `次の一手: ${advice}`));
@@ -300,22 +316,45 @@ function mergeDirectorWeeks(primary, directorData) {
   };
 }
 
+function videoKey(video) {
+  return String(video?.id || video?.url || video?.title || "");
+}
+
+function isUnlistedVideo(video) {
+  return /限定公開|非公開|unlisted|private/i.test(String(video?.visibility || ""));
+}
+
+function uniqueTopVideos(videos) {
+  const seen = new Set();
+  return (videos || []).filter((video) => {
+    const key = videoKey(video);
+    if (!key || seen.has(key) || isUnlistedVideo(video)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function mergeWeekVideos(primaryVideos, directorVideos) {
-  if (!primaryVideos?.length) return directorVideos || [];
-  const directorById = new Map((directorVideos || []).map((video) => [video.id, video]));
+  const primary = uniqueTopVideos(primaryVideos);
+  const director = uniqueTopVideos(directorVideos);
+  if (!director.length) return primary.slice(0, 4);
+  const primaryById = new Map(primary.map((video) => [videoKey(video), video]));
   const select = (value, fallback) => value === undefined || value === null || value === "" ? fallback : value;
-  return primaryVideos.map((video) => {
-    const details = directorById.get(video.id);
-    if (!details) return video;
+  const merged = director.map((details) => {
+    const video = primaryById.get(videoKey(details)) || {};
     return {
-      ...details,
       ...video,
+      ...details,
       subscribers: select(video.subscribers, details.subscribers),
       subscriberGains: select(video.subscriberGains, details.subscriberGains),
       estimatedRevenue: select(video.estimatedRevenue, details.estimatedRevenue),
-      advice: select(video.advice, details.advice)
+      memo: select(video.memo, details.memo),
+      advice: select(details.advice, video.advice)
     };
   });
+  const selected = new Set(merged.map(videoKey));
+  const supplements = primary.filter((video) => !selected.has(videoKey(video))).slice(0, Math.max(0, 4 - merged.length));
+  return [...merged, ...supplements].slice(0, 4);
 }
 
 function mergeWeekKpis(primaryKpis, directorKpis) {

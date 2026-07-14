@@ -35,3 +35,10 @@ test("video attributes can be edited after confirmation", () => {
   assert.deepEqual(state.videos[0].members, ["山内瑞葵"]);
   assert.equal(state.reviews.length, 3);
 });
+
+test("video attributes retain an explicitly set visibility", () => {
+  const state = { videos: [{ videoId: "abcdefghijk", title: "公開設定を持つ動画" }], classifications: [], reviews: [] };
+  updateVideoAttributes(state, { videoId: "abcdefghijk", edits: { visibility: "限定公開" } }, "2026-07-08T00:00:00.000Z");
+  assert.equal(state.videos[0].visibility, "限定公開");
+  assert.equal(state.reviews[0].field, "visibility");
+});

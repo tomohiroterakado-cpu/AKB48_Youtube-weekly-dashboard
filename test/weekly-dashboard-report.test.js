@@ -54,3 +54,25 @@ test("top videos retain content-level subscriber and revenue metrics", () => {
   assert.equal(video.estimatedRevenue, 27872.067);
   assert.match(video.advice, /コメント反応/);
 });
+
+test("top videos are unique, omit unlisted videos, and retain duration metrics", () => {
+  const state = {
+    imports: [{ id: "import_1", periodStart: "2026-07-04", periodEnd: "2026-07-10", uploadedAt: "2026-07-14", status: "completed", summary: {} }],
+    dailyImports: [], dailyMetrics: [],
+    videos: [
+      { videoId: "abcdefghijk", title: "重複しない動画", durationSeconds: 720, visibility: "公開" },
+      { videoId: "lmnopqrstuv", title: "限定公開動画", durationSeconds: 600, visibility: "限定公開" },
+      { videoId: "12345678901", title: "別の公開動画", durationSeconds: 150, visibility: "公開" }
+    ],
+    metrics: [
+      { importId: "import_1", videoId: "abcdefghijk", current: true, values: { views: 1000, averageViewDuration: "0:03:21" } },
+      { importId: "import_1", videoId: "abcdefghijk", current: true, values: { views: 900, averageViewDuration: "0:03:20" } },
+      { importId: "import_1", videoId: "lmnopqrstuv", current: true, values: { views: 800 } },
+      { importId: "import_1", videoId: "12345678901", current: true, values: { views: 700, averageViewDuration: "0:00:45" } }
+    ]
+  };
+  const videos = buildWeeklyDashboardData(state).weeks[0].topVideos;
+  assert.deepEqual(videos.map((video) => video.id), ["abcdefghijk", "12345678901"]);
+  assert.equal(videos[0].durationSeconds, 720);
+  assert.equal(videos[0].averageViewDuration, "0:03:21");
+});
