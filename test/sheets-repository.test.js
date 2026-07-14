@@ -20,6 +20,11 @@ test("boolean cells are restored as booleans", () => {
   assert.equal(parseValue("TRUE", "superseded"), true);
 });
 
+test("unexpected list values are serialized before writing to Sheets", () => {
+  assert.equal(cellValue(["2026-07-04", "2026-07-05"], "unmappedField"), '["2026-07-04","2026-07-05"]');
+  assert.equal(cellValue({ note: "test" }, "unmappedField"), '{"note":"test"}');
+});
+
 test("a Sheets write stages imports as processing before completion", async () => {
   const repository = new GoogleSheetsRepository({ spreadsheetId: "test", accessToken: "test" });
   const state = emptyState();
