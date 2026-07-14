@@ -77,6 +77,7 @@ function renderGoals() {
 }
 
 function formatSignedValue(value, format) {
+  if (value === null || value === undefined || value === "") return "-";
   const number = Number(value || 0);
   const sign = number > 0 ? "+" : "";
   return `${sign}${formatMetric(number, format)}`;
@@ -260,6 +261,7 @@ function mergeDirectorWeeks(primary, directorData) {
     merged.set(week.key, {
       ...week,
       ...existing,
+      kpis: mergeWeekKpis(existing.kpis, week.kpis),
       dailyUnique: existing.dailyUnique?.length ? existing.dailyUnique : week.dailyUnique,
       topVideos: existing.topVideos?.length ? existing.topVideos : week.topVideos
     });
@@ -268,6 +270,20 @@ function mergeDirectorWeeks(primary, directorData) {
     source: { ...base.source, ...director.source },
     weeks: [...merged.values()]
   };
+}
+
+function mergeWeekKpis(primaryKpis, directorKpis) {
+  const directorByLabel = new Map((directorKpis || []).map((item) => [item.label, item]));
+  const merged = (primaryKpis || []).map((item) => {
+    if (item.label === "長尺平均高評価" && directorByLabel.has(item.label)) return directorByLabel.get(item.label);
+    if (item.label === "メンバーシップ増減数" && /未入力/.test(String(item.note || ""))) {
+      return { ...item, value: null, format: "signed_number" };
+    }
+    return item;
+  });
+  const labels = new Set(merged.map((item) => item.label));
+  (directorKpis || []).forEach((item) => { if (!labels.has(item.label)) merged.push(item); });
+  return merged;
 }
 
 function loadDataViaScript(endpoint) {
