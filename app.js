@@ -3,8 +3,9 @@ const oneDecimal = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 1 });
 const percent = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 1 });
 
 function formatValue(item) {
+  if (item.value === null || item.value === undefined || item.value === "") return "-";
   if (item.format === "hours") return `${oneDecimal.format(item.value)}h`;
-  if (item.format === "signed_number" || item.label === "メンバーシップ増減数") return formatSignedValue(item.value, "number");
+  if (item.format === "signed_number") return formatSignedValue(item.value, "number");
   if (item.format === "number") return yen.format(item.value);
   return item.value;
 }
@@ -105,13 +106,18 @@ function renderGoals() {
     top.appendChild(el("span", "", goal.label));
     top.appendChild(el("span", "", `目標 ${formatMetric(goal.target, goal.format)}`));
     card.appendChild(top);
-    card.appendChild(el("div", "goalValue", `${formatMetric(goal.current, goal.format)} / ${percent.format(goal.progress || 0)}%`));
+    const unavailable = Boolean(goal.unavailable);
+    card.appendChild(el("div", "goalValue", unavailable
+      ? `${formatMetric(goal.current, goal.format)} / 判定不可`
+      : `${formatMetric(goal.current, goal.format)} / ${percent.format(goal.progress || 0)}%`));
     const track = el("div", "progressTrack");
     const fill = el("div", "progressFill");
     fill.style.width = `${Math.min(goal.progress || 0, 100)}%`;
     track.appendChild(fill);
     card.appendChild(track);
-    card.appendChild(el("div", "probability", `達成見込み: ${percent.format(goal.probability || 0)}% / 必要ペース: ${formatMetric(goal.requiredWeeklyPace, goal.format)}/週`));
+    card.appendChild(el("div", "probability", unavailable
+      ? "締日時点未入力"
+      : `達成見込み: ${percent.format(goal.probability || 0)}% / 必要ペース: ${formatMetric(goal.requiredWeeklyPace, goal.format)}/週`));
     grid.appendChild(card);
   });
 }
@@ -406,11 +412,13 @@ function mergeWeekVideos(primaryVideos, directorVideos) {
 
 function mergeWeekKpis(primaryKpis, directorKpis) {
   const directorByLabel = new Map((directorKpis || []).map((item) => [item.label, item]));
-  const merged = (primaryKpis || []).map((item) => {
+  const membershipCount = directorByLabel.get("メンバーシップ会員数");
+  const merged = (primaryKpis || [])
+    // 旧Apps Scriptの「増減数」カードは、Cloud Run側で会員数カードを補完できる場合に置き換える。
+    .filter((item) => !(membershipCount && item.label === "メンバーシップ増減数"))
+    .map((item) => {
     if (item.label === "長尺平均高評価" && directorByLabel.has(item.label)) return directorByLabel.get(item.label);
-    if (item.label === "メンバーシップ増減数" && /未入力/.test(String(item.note || ""))) {
-      return { ...item, value: null, format: "signed_number" };
-    }
+    if (item.label === "メンバーシップ会員数" && membershipCount) return membershipCount;
     return item;
   });
   const labels = new Set(merged.map((item) => item.label));

@@ -161,7 +161,7 @@ function buildWeekData_(weeklyRow, weekIndex, allWeeks, videos, ideas, daily, go
   const rawWeekVideos = csvRows.filter((row) => toDateText_(row['週開始日']) === weekStart);
   const longFormVideos = (rawWeekVideos.length ? rawWeekVideos : allMatchingVideos).filter(isLongFormVideo_);
   const longFormLikesAverage = average_(longFormVideos.map((row) => firstNumber_(row, ['高評価数'])));
-  const membershipDelta = membershipDelta_(weeklyRow, allWeeks, weekIndex);
+  const membership = membershipKpi_(weeklyRow, allWeeks, weekIndex);
 
   const matchingIdeas = ideas
     .filter((row) => toDateText_(row['週開始日']) === weekStart)
@@ -191,7 +191,7 @@ function buildWeekData_(weeklyRow, weekIndex, allWeeks, videos, ideas, daily, go
     kpis: [
       { label: '週間視聴回数', value: Number(weeklyRow['総視聴回数'] || 0), format: 'number', note: '目標: 累計視聴回数' },
       { label: 'チャンネル登録者増加数', value: Number(weeklyRow['登録者増加数'] || 0), format: 'number', note: '目標: チャンネル登録数' },
-      { label: 'メンバーシップ増減数', value: membershipDelta.value, format: 'number', note: membershipDelta.note },
+      { label: 'メンバーシップ会員数', value: membership.value, format: 'number', note: membership.note },
       { label: 'ユニーク視聴者', value: Number(weeklyRow['ユニーク視聴者数'] || 0), format: 'number', note: '週次の到達人数' },
       { label: '新しい視聴者数', value: Number(weeklyRow['新しい視聴者数'] || 0), format: 'number', note: '目標: 新規視聴者' },
       { label: 'リピーター', value: Number(weeklyRow['リピーター'] || 0), format: 'number', note: '目標: 継続視聴者' },
@@ -253,38 +253,27 @@ function average_(values) {
   return numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
 }
 
-function membershipDelta_(weeklyRow, allWeeks, weekIndex) {
-  const explicitDelta = numberFromRow_(weeklyRow, [
-    'メンバーシップ増減数',
-    'メンバーシップ増減',
-    '手入力_メンバーシップ増減数'
-  ]);
-  if (explicitDelta !== null) {
-    return { value: explicitDelta, note: '手入力' };
-  }
-
+function membershipKpi_(weeklyRow, allWeeks, weekIndex) {
   const current = membershipCount_(weeklyRow);
   if (current === null) {
-    return { value: 0, note: '締日時点未入力' };
+    return { value: null, note: '締日時点未入力' };
   }
 
   const previous = previousMembershipCount_(allWeeks, weekIndex);
   if (previous === null) {
-    return { value: 0, note: '比較週なし' };
+    return { value: current, note: '前週比 比較週なし / 締日時点手入力' };
   }
 
+  const delta = current - previous;
   return {
-    value: current - previous,
-    note: `前週比 / 現在 ${formatNumber_(current)}人`
+    value: current,
+    note: `前週比 ${delta > 0 ? '+' : ''}${formatNumber_(delta)}人 / 締日時点手入力`
   };
 }
 
 function previousMembershipCount_(allWeeks, weekIndex) {
-  for (let index = weekIndex - 1; index >= 0; index -= 1) {
-    const value = membershipCount_(allWeeks[index]);
-    if (value !== null) return value;
-  }
-  return null;
+  if (weekIndex <= 0) return null;
+  return membershipCount_(allWeeks[weekIndex - 1]);
 }
 
 function membershipCount_(row) {

@@ -73,7 +73,7 @@ window.AKB_WEEKLY_DATA = {
       kpis: [
         { label: "週間視聴回数", value: 492020, format: "number", note: "目標: 累計視聴回数" },
         { label: "チャンネル登録者増加数", value: 766, format: "number", note: "目標: チャンネル登録数" },
-        { label: "メンバーシップ増減数", value: 12, format: "signed_number", note: "手入力" },
+        { label: "メンバーシップ会員数", value: null, format: "number", note: "データ取得待ち" },
         { label: "ユニーク視聴者", value: 108864, format: "number", note: "週次の到達人数" },
         { label: "新しい視聴者数", value: 24259, format: "number", note: "目標: 新規視聴者" },
         { label: "リピーター", value: 84530, format: "number", note: "目標: 継続視聴者" },
