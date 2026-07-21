@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { cellValue, GoogleSheetsRepository, parseValue, spreadsheetColumn, TABLES } = require("../lib/sheets-repository");
+const { cellValue, GoogleSheetsRepository, parseValue, retryAfterMs, retryDelayMs, spreadsheetColumn, TABLES } = require("../lib/sheets-repository");
 const { emptyState } = require("../lib/repository");
 
 test("nested values round-trip through a sheet cell", () => {
@@ -37,6 +37,15 @@ test("schema migration expands an existing sheet before adding a new field", asy
   const fetchImpl = async (url, options = {}) => {
     calls.push({ url, options });
     const decoded = decodeURIComponent(url);
+    if (decoded.includes("values:batchGet")) {
+      const ranges = new URL(url).searchParams.getAll("ranges");
+      return new Response(JSON.stringify({
+        valueRanges: ranges.map((range) => ({
+          range,
+          values: [range.includes("AI_videos!1:1") ? TABLES.videos.fields.slice(0, -1) : []]
+        }))
+      }), { status: 200 });
+    }
     if (decoded.includes("?fields=sheets.properties")) {
       return new Response(JSON.stringify({
         sheets: Object.values(TABLES).map((table, index) => ({
@@ -59,6 +68,95 @@ test("schema migration expands an existing sheet before adding a new field", asy
   const batchUpdate = calls.find((call) => call.url.includes(":batchUpdate") && JSON.parse(call.options.body).requests[0].updateSheetProperties);
   assert.equal(JSON.parse(batchUpdate.options.body).requests[0].updateSheetProperties.properties.gridProperties.columnCount, TABLES.videos.fields.length);
   assert.equal(calls.some((call) => decodeURIComponent(call.url).includes("AI_videos!X1")), true);
+});
+
+test("repository batches table reads into one Sheets request", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url, options });
+    const decoded = decodeURIComponent(url);
+    if (decoded.includes("?fields=sheets.properties")) {
+      return new Response(JSON.stringify({
+        sheets: Object.values(TABLES).map((table, index) => ({
+          properties: { sheetId: index + 1, title: table.sheet, gridProperties: { columnCount: table.fields.length } }
+        }))
+      }), { status: 200 });
+    }
+    if (decoded.includes("values:batchGet")) {
+      const ranges = new URL(url).searchParams.getAll("ranges");
+      return new Response(JSON.stringify({
+        valueRanges: ranges.map((range) => {
+          const table = Object.values(TABLES).find((item) => range.startsWith(`${item.sheet}!`));
+          return { range, values: [table?.fields || []] };
+        })
+      }), { status: 200 });
+    }
+    return new Response(JSON.stringify({}), { status: 200 });
+  };
+  const repository = new GoogleSheetsRepository({ spreadsheetId: "test", accessToken: "test", fetchImpl });
+  const state = await repository.read();
+  const batchReads = calls.filter((call) => decodeURIComponent(call.url).includes("values:batchGet"));
+  assert.equal(batchReads.length, 2);
+  assert.equal(new URL(batchReads[1].url).searchParams.getAll("ranges").length, Object.keys(TABLES).length);
+  assert.equal(state.imports.length, 0);
+});
+
+test("repository retries Sheets quota errors with exponential backoff", async () => {
+  let requestCount = 0;
+  const delays = [];
+  const repository = new GoogleSheetsRepository({
+    spreadsheetId: "test",
+    accessToken: "test",
+    sleep: async (milliseconds) => delays.push(milliseconds),
+    random: () => 0,
+    fetchImpl: async () => {
+      requestCount += 1;
+      if (requestCount < 3) {
+        return new Response(JSON.stringify({ error: { status: "RESOURCE_EXHAUSTED" } }), {
+          status: 429,
+          headers: { "retry-after": "0" }
+        });
+      }
+      return new Response(JSON.stringify({ values: [["ok"]] }), { status: 200 });
+    }
+  });
+  const result = await repository.readRange("Test!A1");
+  assert.deepEqual(result.values, [["ok"]]);
+  assert.equal(requestCount, 3);
+  assert.deepEqual(delays, [60000, 60000]);
+  assert.equal(retryAfterMs("3"), 3000);
+  assert.equal(retryDelayMs(3, 10_000), 10_000);
+  assert.equal(retryDelayMs(0, 0, 429, () => 0), 60000);
+});
+
+test("concurrent reads share one batch request and use the short cache", async () => {
+  let batchReadCount = 0;
+  const repository = new GoogleSheetsRepository({ spreadsheetId: "test", accessToken: "test" });
+  repository.ensureSchema = async () => undefined;
+  repository.readRanges = async (ranges) => {
+    batchReadCount += 1;
+    await Promise.resolve();
+    return ranges.map(() => ({ values: [[]] }));
+  };
+  const [first, second] = await Promise.all([repository.read(), repository.read()]);
+  await repository.read();
+  assert.equal(batchReadCount, 1);
+  assert.deepEqual(first, second);
+});
+
+test("append requests are not blindly retried after a transport failure", async () => {
+  let requestCount = 0;
+  const repository = new GoogleSheetsRepository({
+    spreadsheetId: "test",
+    accessToken: "test",
+    sleep: async () => { throw new Error("should not wait"); },
+    fetchImpl: async () => {
+      requestCount += 1;
+      throw new Error("connection closed after request");
+    }
+  });
+  await assert.rejects(repository.appendRows("AI_videos", [["video_1"]]), /connection closed/);
+  assert.equal(requestCount, 1);
 });
 
 test("a Sheets write stages imports as processing before completion", async () => {

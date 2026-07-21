@@ -91,6 +91,31 @@ test("legacy daily sheet without a week-start column is synchronized by date", a
   assert.deepEqual(dailyWrite.values[0], ["2026-07-04", 41014]);
 });
 
+test("legacy synchronization batches reads for the four report sheets", async () => {
+  const writes = [];
+  const rangesRead = [];
+  const repository = {
+    read: async () => ({ ...state, imports: [importRecord], dailyImports: [{ id: "daily_1", periodStart: "2026-07-04", periodEnd: "2026-07-10", status: "completed" }] }),
+    readRange: async () => { throw new Error("individual reads should not be used"); },
+    readRanges: async (ranges) => {
+      rangesRead.push(ranges);
+      return ranges.map((range) => {
+        const sheet = range.split("!")[0];
+        const headers = sheet === "CSV_週次集計"
+          ? ["週開始日", "週終了日", "総視聴回数"]
+          : sheet === "CSV_日別"
+            ? ["日付", "ユニーク視聴者数"]
+            : ["週開始日", "動画ID", "企画ジャンル", "高評価数"];
+        return { values: [[sheet], ["説明"], headers] };
+      });
+    },
+    batchWriteRanges: async (items) => writes.push(...items)
+  };
+  await syncLegacyWeeklyReport(repository, { periodStart: "2026-07-04", periodEnd: "2026-07-10" });
+  assert.deepEqual(rangesRead, [["CSV_週次集計!A:ZZ", "CSV_貼付用!A:ZZ", "自チャンネル動画!A:ZZ", "CSV_日別!A:ZZ"]]);
+  assert.equal(writes.some((item) => item.range === "CSV_日別!A4"), true);
+});
+
 test("legacy synchronization safely adds missing content metric headers", async () => {
   const writes = [];
   const repository = {
