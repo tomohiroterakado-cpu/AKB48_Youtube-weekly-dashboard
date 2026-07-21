@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { cellValue, GoogleSheetsRepository, parseValue, retryAfterMs, retryDelayMs, spreadsheetColumn, TABLES } = require("../lib/sheets-repository");
+const { cellValue, GoogleSheetsRepository, parseValue, retryAfterMs, retryDelayMs, spreadsheetColumn, spreadsheetColumnNumber, TABLES } = require("../lib/sheets-repository");
 const { emptyState } = require("../lib/repository");
 
 test("nested values round-trip through a sheet cell", () => {
@@ -30,6 +30,26 @@ test("schema migration can append a header after column Z", () => {
   assert.equal(spreadsheetColumn(1), "A");
   assert.equal(spreadsheetColumn(26), "Z");
   assert.equal(spreadsheetColumn(27), "AA");
+  assert.equal(spreadsheetColumnNumber("AA"), 27);
+});
+
+test("batch writes expand a legacy sheet before writing beyond its current grid", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url, options });
+    if (url.includes("?fields=sheets.properties")) {
+      return new Response(JSON.stringify({
+        sheets: [{ properties: { sheetId: 7, title: "CSV_貼付用", gridProperties: { rowCount: 1000, columnCount: 20 } } }]
+      }), { status: 200 });
+    }
+    return new Response(JSON.stringify({}), { status: 200 });
+  };
+  const repository = new GoogleSheetsRepository({ spreadsheetId: "test", accessToken: "test", fetchImpl });
+  await repository.batchWriteRanges([{ range: "CSV_貼付用!A1001", values: [Array(23).fill("value")] }]);
+  const resize = calls.find((call) => call.url.endsWith(":batchUpdate"));
+  const properties = JSON.parse(resize.options.body).requests[0].updateSheetProperties.properties.gridProperties;
+  assert.deepEqual(properties, { rowCount: 1001, columnCount: 23 });
+  assert.equal(calls.some((call) => call.url.includes("/values:batchUpdate")), true);
 });
 
 test("schema migration expands an existing sheet before adding a new field", async () => {
