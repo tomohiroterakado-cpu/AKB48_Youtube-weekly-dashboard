@@ -20,6 +20,7 @@
         <button type="button" data-route="review">未確認動画 <span id="reviewBadge" class="navBadge" hidden></span></button>
         <button type="button" data-route="weekly">週次レポート</button>
         <button type="button" data-route="director">AI Director</button>
+        <button type="button" data-route="thumbnail">サムネイル制作</button>
         <button type="button" data-route="masters">マスタ管理</button>
       </nav>
       <div class="adminControls" aria-live="polite">
@@ -122,6 +123,45 @@
         <button id="refreshDirector" class="secondaryButton" type="button">再集計</button>
       </div>
       <section id="directorReport" class="directorPanel" aria-live="polite"></section>
+    </main>
+
+    <main id="thumbnailView" class="directorPage" data-director-view="thumbnail" hidden>
+      <div class="directorPageHeader">
+        <div><p class="eyebrow">HIGH QUALITY MODE</p><h1>サムネイル制作</h1><p class="meta">元画像を守りながら、5案の比較からImages2.0の高品質テロップへ進みます。</p></div>
+      </div>
+      <section class="thumbnailWorkspace">
+        <section class="directorPanel thumbnailSourcePanel">
+          <div class="panelHeader"><div><span class="sectionLabel">元サムネイル</span><h2>素材と訴求を指定</h2></div></div>
+          <div class="thumbnailFormGrid">
+            <label class="fileDrop thumbnailFileDrop" for="thumbnailOriginalFile"><input id="thumbnailOriginalFile" type="file" accept="image/png,image/jpeg,image/webp"><strong>元サムネイルを選択</strong><span>PNG / JPEG / WebP、8MB以下</span></label>
+            <div class="thumbnailCopyFields">
+              <label><span>案件名</span><input id="thumbnailJobId" value="thumbnail-job" required></label>
+              <label><span>変更後のテロップ文言</span><input id="thumbnailCopy" placeholder="例：コラボウォールアートが大きすぎ！？" required></label>
+              <button id="thumbnailReview" class="primaryButton" type="button">5案を設計する</button>
+            </div>
+          </div>
+          <p id="thumbnailStatus" class="meta" aria-live="polite">元画像を読み込み、顔・ロゴを保護してから5案を比較します。画像を生成する時だけ外部AIを利用し、利用料金が発生する場合があります。</p>
+        </section>
+        <section class="directorPanel thumbnailPreviewPanel">
+          <div class="panelHeader"><div><span class="sectionLabel">保護領域</span><h2>顔・ロゴをドラッグして囲む</h2><p class="meta">囲んだ箇所は生成後に元画像から前面へ戻します。</p></div></div>
+          <div id="thumbnailPreviewSurface" class="thumbnailPreviewSurface"><img id="thumbnailOriginalPreview" alt="元サムネイルのプレビュー" hidden><p id="thumbnailPreviewHint" class="thumbnailPreviewHint" hidden>ドラッグして、顔・ロゴ・変えたくない箇所を保護してください。</p></div>
+          <div id="thumbnailProtectedList" class="thumbnailProtectedList"></div>
+        </section>
+        <aside class="directorPanel thumbnailQualityPanel">
+          <div class="panelHeader"><div><span class="sectionLabel">品質ゲート</span><h2>公開前の最終確認</h2></div></div>
+          <div id="thumbnailQualityList" class="thumbnailQualityList"><p class="meta">生成後に確認項目が表示されます。</p></div>
+          <button id="thumbnailGenerate" class="primaryButton" type="button" disabled>選択案をImages2.0で生成</button>
+          <button id="thumbnailDownload" class="secondaryButton" type="button" disabled>最終PNGをダウンロード</button>
+        </aside>
+      </section>
+      <section class="directorPanel">
+        <div class="panelHeader"><div><span class="sectionLabel">クリエイティブ案</span><h2>テーマの異なる5案から選ぶ</h2><p class="meta">生成するのは、選択した1案だけです。</p></div></div>
+        <div id="thumbnailCandidateRail" class="thumbnailCandidateRail"></div>
+      </section>
+      <section class="directorPanel" id="thumbnailFinalPanel">
+        <div class="panelHeader"><div><span class="sectionLabel">最終プレビュー</span><h2>元画像保護後の完成イメージ</h2></div></div>
+        <div id="thumbnailFinalPreview" class="thumbnailFinalPreview"><p class="emptyState">生成・合成後の最終サムネイルがここに表示されます。</p></div>
+      </section>
     </main>
 
     <main id="weeklyView" class="dashboard" data-director-view="weekly" hidden>
@@ -250,5 +290,6 @@
     <script src="./data/latest.js"></script>
     <script src="./app.js"></script>
     <script src="./director.js"></script>
+    <script src="./thumbnail.js"></script>
   </body>
 </html>

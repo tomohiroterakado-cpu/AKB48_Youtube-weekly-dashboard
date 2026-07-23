@@ -56,6 +56,7 @@ function showRoute(route) {
   if (resolved === "review") loadReviews();
   if (resolved === "masters") loadMasters();
   if (resolved === "director") loadDirectorReport();
+  if (resolved === "thumbnail" && window.loadThumbnailWorkspace) window.loadThumbnailWorkspace();
 }
 
 async function loadDirectorReport() {

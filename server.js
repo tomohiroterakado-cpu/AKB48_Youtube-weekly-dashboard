@@ -11,6 +11,8 @@ const { buildReportWithLegacyGoals } = require("./lib/legacy-goals");
 const { approveMarketReport, attachMarketReports, marketReportFromEmail, upsertMarketReport } = require("./lib/market-report");
 const { syncLegacyWeeklyReport } = require("./lib/legacy-sheet-sync");
 const { confirmVideos, reclassifyUnconfirmedVideos, updateVideoAttributes } = require("./lib/review-service");
+const { createThumbnailReview, selectThumbnailCandidate, assessThumbnailQuality } = require("./lib/thumbnail-workflow");
+const { generateImages2Design } = require("./lib/images2-client");
 
 const root = __dirname;
 const port = Number(process.env.PORT || 8080);
@@ -205,7 +207,25 @@ async function handleApi(req, res, pathname) {
     });
     return json(res, 201, result);
   }
-  return json(res, 404, { error: "APIが見つかりません。" });
+  if (req.method === "POST" && pathname === "/api/thumbnails/review") {
+    authorizeWrite(req);
+    return json(res, 200, createThumbnailReview(await readJson(req)));
+  }
+  if (req.method === "POST" && pathname === "/api/thumbnails/select") {
+    authorizeWrite(req);
+    const body = await readJson(req);
+    return json(res, 200, selectThumbnailCandidate(body.review, body.candidateId));
+  }
+  if (req.method === "POST" && pathname === "/api/thumbnails/generate") {
+    authorizeWrite(req);
+    const body = await readJson(req);
+    return json(res, 200, await generateImages2Design({ originalImage: body.originalImage, production: body.production }));
+  }
+  if (req.method === "POST" && pathname === "/api/thumbnails/quality") {
+    authorizeWrite(req);
+    return json(res, 200, assessThumbnailQuality((await readJson(req)).checks));
+  }
+    return json(res, 404, { error: "APIが見つかりません。" });
 }
 
 const server = http.createServer(async (req, res) => {

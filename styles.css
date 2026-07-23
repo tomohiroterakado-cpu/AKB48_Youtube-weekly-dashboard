@@ -788,3 +788,39 @@ h2 {
     display: grid;
   }
 }
+
+
+/* Images2.0 高品質サムネイル制作 */
+.thumbnailWorkspace { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(280px, .7fr); gap: 18px; align-items: start; }
+.thumbnailWorkspace .thumbnailSourcePanel { grid-column: 1 / -1; }
+.thumbnailPreviewPanel { min-width: 0; }
+.thumbnailQualityPanel { position: sticky; top: 86px; display: grid; gap: 12px; }
+.thumbnailFormGrid { display: grid; grid-template-columns: minmax(240px, .8fr) minmax(0, 1.2fr); gap: 16px; align-items: stretch; }
+.thumbnailFileDrop { min-height: 150px; margin: 0; }
+.thumbnailCopyFields { display: grid; gap: 10px; }
+.thumbnailCopyFields label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 800; }
+.thumbnailPreviewSurface { position: relative; overflow: hidden; aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: 7px; background: #24191b; touch-action: none; cursor: crosshair; }
+.thumbnailPreviewSurface img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.thumbnailPreviewHint { position: absolute; right: 10px; bottom: 10px; max-width: 280px; margin: 0; padding: 7px 9px; background: rgba(34, 31, 32, .78); color: white; font-size: 11px; line-height: 1.45; pointer-events: none; }
+.thumbnailRegion { position: absolute; border: 2px dashed #d3163a; background: rgba(211, 22, 58, .13); pointer-events: none; }
+.thumbnailRegion--draft { border-color: #c78a17; background: rgba(199, 138, 23, .16); }
+.thumbnailProtectedList { display: grid; gap: 7px; margin-top: 12px; }
+.thumbnailProtectedRow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 9px 10px; border: 1px solid var(--line); background: #fffdfa; font-size: 13px; }
+.thumbnailProtectedRow small { color: var(--muted); }
+.textButton { border: 0; background: transparent; color: var(--akb-red); font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.thumbnailCandidateRail { display: grid; grid-template-columns: repeat(5, minmax(170px, 1fr)); gap: 10px; overflow-x: auto; }
+.thumbnailCandidate { display: grid; gap: 8px; min-height: 210px; padding: 14px; border: 1px solid var(--line); border-top: 4px solid var(--teal); background: #fffdfa; }
+.thumbnailCandidate.selected { border-color: var(--akb-red); border-top-color: var(--akb-red); background: #fff7f8; }
+.thumbnailCandidate h3, .thumbnailCandidate p { margin: 0; }
+.thumbnailCandidate h3 { font-size: 17px; }
+.thumbnailCandidate p { font-size: 13px; line-height: 1.55; }
+.thumbnailCandidate .meta { margin-top: auto; color: var(--muted); font-size: 12px; }
+.thumbnailCandidateId { display: grid; place-items: center; width: 28px; height: 28px; background: var(--akb-red); color: white; font-size: 13px; }
+.thumbnailCandidate button { align-self: end; }
+.thumbnailQualityList { display: grid; gap: 2px; }
+.thumbnailQualityItem { display: flex; gap: 9px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); color: var(--ink); font-size: 13px; font-weight: 700; }
+.thumbnailQualityItem input { flex: 0 0 auto; width: 18px; min-height: 18px; }
+.thumbnailFinalPreview { min-height: 180px; }
+.thumbnailFinalPreview img { display: block; width: 100%; max-width: 960px; margin: 0 auto; aspect-ratio: 16 / 9; object-fit: contain; background: #24191b; }
+@media (max-width: 920px) { .thumbnailWorkspace { grid-template-columns: 1fr; } .thumbnailQualityPanel { position: static; } .thumbnailCandidateRail { grid-template-columns: repeat(5, minmax(190px, 1fr)); } }
+@media (max-width: 560px) { .thumbnailFormGrid { grid-template-columns: 1fr; } .thumbnailProtectedRow { grid-template-columns: minmax(0, 1fr) auto; } .thumbnailProtectedRow .textButton { grid-column: 1 / -1; justify-self: start; } }

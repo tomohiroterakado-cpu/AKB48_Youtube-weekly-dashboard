@@ -56,9 +56,22 @@ node server.js
 | `GOOGLE_SPREADSHEET_ID` | sheets時必須 | 永続化するGoogle Sheets ID |
 | `ADMIN_ACCESS_TOKEN` | 書込時必須 | CSV取込・確認・マスタ編集の保護 |
 | `GOOGLE_ACCESS_TOKEN` | ローカルSheets検証のみ | 本番Cloud Runではメタデータ認証を使用 |
+| `OPENAI_API_KEY` | サムネイル画像生成時のみ | GPT Image 2で選択したサムネイル案を編集生成するAPIキー |
+| `OPENAI_IMAGE_MODEL` | 任意 | 既定は `gpt-image-2`。画像生成モデルを切り替える場合だけ設定 |
 | `DATA_FILE` | 任意 | JSON保存先 |
 
 `ADMIN_ACCESS_TOKEN`、OAuth JSON、APIキーはコードやGitHubに保存しません。
+
+## サムネイル制作
+
+画面上部の **サムネイル制作** では、元画像を保ちながらテロップ・装飾の方向性を5案比較できます。
+
+1. 元サムネイルを選び、変更したいテロップを入力する。
+2. 顔、ロゴ、変えたくない箇所をドラッグして保護する。
+3. 5案から1案を選び、必要な場合だけ **選択案をImages2.0で生成** を実行する。
+4. 顔・ロゴ・日本語・スマホでの読みやすさを確認し、最終PNGを書き出す。
+
+5案の比較、保護範囲の指定、品質確認は追加料金なしで利用できます。画像を生成するボタンを押した時だけOpenAI APIの画像編集リクエストが送信され、利用料金が発生する場合があります。Cloud Runには `OPENAI_API_KEY` をSecret Managerまたは環境変数で設定し、キーをGitHub・スプレッドシート・画面上へ保存しません。画像編集では元画像をOpenAI APIへ送信するため、公開前素材や権利上扱いに注意が必要な素材は、社内の運用ルールに従って利用してください。
 
 ## 管理モード
 
