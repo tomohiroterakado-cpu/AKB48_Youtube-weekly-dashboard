@@ -1,11 +1,13 @@
 const thumbnailState = {
   imageDataUrl: "",
   review: null,
+  reviewToken: "",
   production: null,
   selectedCandidateId: "",
   protectedRegions: [],
   generatedImageDataUrl: "",
-  finalImageDataUrl: ""
+  finalImageDataUrl: "",
+  sourceSize: null
 };
 
 function thumbnailEl(tag, className, text) {
@@ -104,6 +106,7 @@ function bindThumbnailProtectionDrawing() {
 
 function resetThumbnailResult() {
   thumbnailState.review = null;
+  thumbnailState.reviewToken = "";
   thumbnailState.production = null;
   thumbnailState.selectedCandidateId = "";
   thumbnailState.generatedImageDataUrl = "";
@@ -126,6 +129,8 @@ async function readThumbnailFile() {
     reader.onerror = () => reject(new Error("画像を読み込めませんでした。"));
     reader.readAsDataURL(file);
   });
+  const image = await thumbnailImage(thumbnailState.imageDataUrl);
+  thumbnailState.sourceSize = { width: image.naturalWidth, height: image.naturalHeight };
   document.getElementById("thumbnailOriginalPreview").src = thumbnailState.imageDataUrl;
   document.getElementById("thumbnailOriginalPreview").hidden = false;
   document.getElementById("thumbnailPreviewHint").hidden = false;
@@ -154,7 +159,7 @@ async function createThumbnailReview() {
   try {
     if (!thumbnailState.imageDataUrl) await readThumbnailFile();
     result.className = "infoItem";
-    result.textContent = "元画像を診断し、テーマの異なる5案を作成しています...";
+    result.textContent = "入力したテロップと、指定した保護範囲をもとに5案を作成しています...";
     const review = await api("/api/thumbnails/review", {
       method: "POST",
       headers: adminHeaders(),
@@ -165,6 +170,7 @@ async function createThumbnailReview() {
       })
     });
     thumbnailState.review = review;
+    thumbnailState.reviewToken = review.reviewToken;
     thumbnailState.selectedCandidateId = "";
     result.textContent = "5案を用意しました。1案を選ぶと、選択案だけをImages2.0で生成します。";
     renderThumbnailCandidates();
@@ -180,13 +186,13 @@ async function selectThumbnailCandidate(candidateId) {
     const production = await api("/api/thumbnails/select", {
       method: "POST",
       headers: adminHeaders(),
-      body: JSON.stringify({ review: thumbnailState.review, candidateId })
+      body: JSON.stringify({ reviewToken: thumbnailState.reviewToken, candidateId })
     });
     thumbnailState.production = production;
     thumbnailState.selectedCandidateId = candidateId;
     document.getElementById("thumbnailGenerate").disabled = false;
     result.className = "infoItem";
-    result.textContent = `${production.selectedCandidate.name}を選択しました。人物・ロゴは元画像から前面復帰します。`;
+    result.textContent = `${production.selectedCandidate.name}を選択しました。指定した保護範囲は生成後に元画像から前面復帰します。`;
     renderThumbnailCandidates();
   } catch (error) {
     result.className = "errorItem";
@@ -241,11 +247,11 @@ async function generateThumbnail() {
   try {
     generate.disabled = true;
     result.className = "infoItem";
-    result.textContent = "選択案をImages2.0で高品質化しています。顔・ロゴは直後に元画像へ戻します...";
+    result.textContent = "選択案をImages2.0で高品質化しています。指定した保護範囲は直後に元画像へ戻します...";
     const generated = await api("/api/thumbnails/generate", {
       method: "POST",
       headers: adminHeaders(),
-      body: JSON.stringify({ originalImage: thumbnailState.imageDataUrl, production: thumbnailState.production })
+      body: JSON.stringify({ originalImage: thumbnailState.imageDataUrl, reviewToken: thumbnailState.reviewToken, candidateId: thumbnailState.selectedCandidateId, outputSize: thumbnailState.sourceSize })
     });
     thumbnailState.generatedImageDataUrl = generated.imageDataUrl;
     thumbnailState.finalImageDataUrl = await compositeProtectedRegions(generated.imageDataUrl);
@@ -260,7 +266,7 @@ async function generateThumbnail() {
     result.className = "errorItem";
     result.textContent = error.message;
   } finally {
-    generate.disabled = !thumbnailState.production;
+    generate.disabled = Boolean(thumbnailState.finalImageDataUrl) || !thumbnailState.production;
   }
 }
 

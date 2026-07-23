@@ -13,6 +13,7 @@ const { syncLegacyWeeklyReport } = require("./lib/legacy-sheet-sync");
 const { confirmVideos, reclassifyUnconfirmedVideos, updateVideoAttributes } = require("./lib/review-service");
 const { createThumbnailReview, selectThumbnailCandidate, assessThumbnailQuality } = require("./lib/thumbnail-workflow");
 const { generateImages2Design } = require("./lib/images2-client");
+const { ThumbnailGenerationGuard, generationFingerprint, releasePersistentGeneration, reservePersistentGeneration, signThumbnailReview, verifyThumbnailReview } = require("./lib/thumbnail-session");
 
 const root = __dirname;
 const port = Number(process.env.PORT || 8080);
@@ -22,6 +23,7 @@ const dataBackend = process.env.DATA_BACKEND || (process.env.GOOGLE_SPREADSHEET_
 const repository = dataBackend === "sheets"
   ? new GoogleSheetsRepository({ spreadsheetId: process.env.GOOGLE_SPREADSHEET_ID, accessToken: process.env.GOOGLE_ACCESS_TOKEN })
   : new JsonRepository(process.env.DATA_FILE || path.join(root, ".data", "director.json"));
+const thumbnailGenerationGuard = new ThumbnailGenerationGuard();
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -209,17 +211,40 @@ async function handleApi(req, res, pathname) {
   }
   if (req.method === "POST" && pathname === "/api/thumbnails/review") {
     authorizeWrite(req);
-    return json(res, 200, createThumbnailReview(await readJson(req)));
+    const review = createThumbnailReview(await readJson(req));
+    return json(res, 200, { ...review, reviewToken: signThumbnailReview(review, adminToken) });
   }
   if (req.method === "POST" && pathname === "/api/thumbnails/select") {
     authorizeWrite(req);
     const body = await readJson(req);
-    return json(res, 200, selectThumbnailCandidate(body.review, body.candidateId));
+    return json(res, 200, selectThumbnailCandidate(verifyThumbnailReview(body.reviewToken, adminToken), body.candidateId));
   }
   if (req.method === "POST" && pathname === "/api/thumbnails/generate") {
     authorizeWrite(req);
     const body = await readJson(req);
-    return json(res, 200, await generateImages2Design({ originalImage: body.originalImage, production: body.production }));
+    const review = verifyThumbnailReview(body.reviewToken, adminToken);
+    const production = selectThumbnailCandidate(review, body.candidateId);
+    const fingerprint = generationFingerprint({ review, candidateId: body.candidateId, originalImage: body.originalImage });
+    thumbnailGenerationGuard.reserve(fingerprint);
+    let persistentReservation = false;
+    let externalGenerationSucceeded = false;
+    try {
+      await repository.mutate((state) => reservePersistentGeneration(state, fingerprint));
+      persistentReservation = true;
+      const generated = await generateImages2Design({ originalImage: body.originalImage, production, outputSize: body.outputSize });
+      externalGenerationSucceeded = true;
+      return json(res, 200, generated);
+    } catch (error) {
+      thumbnailGenerationGuard.release(fingerprint);
+      if (persistentReservation && !externalGenerationSucceeded) {
+        try {
+          await repository.mutate((state) => releasePersistentGeneration(state, fingerprint));
+        } catch {
+          // 保存済みの重複防止情報は、元の生成エラーより優先しない。
+        }
+      }
+      throw error;
+    }
   }
   if (req.method === "POST" && pathname === "/api/thumbnails/quality") {
     authorizeWrite(req);

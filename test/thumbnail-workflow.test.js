@@ -57,6 +57,7 @@ test("選択案だけを画像編集APIへ渡し、Base64のPNGを返す", async
   const output = await generateImages2Design({
     originalImage: "data:image/png;base64,iVBORw0KGgo=",
     production,
+    outputSize: { width: 1280, height: 720 },
     apiKey: "test-key",
     model: "gpt-image-2",
     fetchImpl: async (url, options) => {
@@ -67,5 +68,7 @@ test("選択案だけを画像編集APIへ渡し、Base64のPNGを返す", async
   assert.equal(request.url, "https://api.openai.com/v1/images/edits");
   assert.equal(request.options.body.get("model"), "gpt-image-2");
   assert.ok(request.options.body.get("image[]"));
+  assert.equal(request.options.body.get("size"), "1280x720");
+  assert.equal(output.outputSize, "1280x720");
   assert.equal(output.imageDataUrl, "data:image/png;base64,ZmFrZQ==");
 });

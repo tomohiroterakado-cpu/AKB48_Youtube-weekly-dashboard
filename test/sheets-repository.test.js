@@ -33,6 +33,11 @@ test("schema migration can append a header after column Z", () => {
   assert.equal(spreadsheetColumnNumber("AA"), 27);
 });
 
+test("サムネイル生成の重複防止履歴も専用シートへ保存する", () => {
+  assert.equal(TABLES.thumbnailGenerations.sheet, "AI_thumbnail_generations");
+  assert.deepEqual(TABLES.thumbnailGenerations.fields, ["id", "fingerprint", "createdAt", "expiresAt"]);
+});
+
 test("batch writes expand a legacy sheet before writing beyond its current grid", async () => {
   const calls = [];
   const fetchImpl = async (url, options = {}) => {
