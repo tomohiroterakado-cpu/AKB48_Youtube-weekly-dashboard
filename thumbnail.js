@@ -209,10 +209,10 @@ async function selectThumbnailCandidate(candidateId) {
 async function compositeProtectedRegions(generatedImageDataUrl) {
   const [original, generated] = await Promise.all([thumbnailImage(thumbnailState.imageDataUrl), thumbnailImage(generatedImageDataUrl)]);
   const canvas = document.createElement("canvas");
-  canvas.width = generated.naturalWidth;
-  canvas.height = generated.naturalHeight;
+  canvas.width = thumbnailState.sourceSize?.width || generated.naturalWidth;
+  canvas.height = thumbnailState.sourceSize?.height || generated.naturalHeight;
   const context = canvas.getContext("2d");
-  context.drawImage(generated, 0, 0, canvas.width, canvas.height);
+  context.drawImage(generated, 0, 0, generated.naturalWidth, generated.naturalHeight, 0, 0, canvas.width, canvas.height);
   thumbnailState.protectedRegions.forEach((region) => {
     const x = Math.round(region.x * canvas.width);
     const y = Math.round(region.y * canvas.height);

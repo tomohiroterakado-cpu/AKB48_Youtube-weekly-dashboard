@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { createThumbnailReview, selectThumbnailCandidate, assessThumbnailQuality } = require("../lib/thumbnail-workflow");
-const { MAX_SOURCE_IMAGE_BYTES, dataUrlToBlob, buildImageEditPrompt, generateImages2Design } = require("../lib/images2-client");
+const { MAX_SOURCE_IMAGE_BYTES, dataUrlToBlob, buildImageEditPrompt, generateImages2Design, normalizedOutputSize } = require("../lib/images2-client");
 
 const input = {
   jobId: "kawasaki-brave-thunders-wallart",
@@ -49,6 +49,12 @@ test("Images2.0への指示はテロップだけを変え、保護対象を明�
 test("画像生成APIは画面側の制限を回避した8MB超の画像を受け付けない", () => {
   const image = `data:image/png;base64,${Buffer.alloc(MAX_SOURCE_IMAGE_BYTES + 1).toString("base64")}`;
   assert.throws(() => dataUrlToBlob(image), /8MB以下/);
+});
+
+test("画像生成用のサイズは16の倍数へ正規化する", () => {
+  assert.equal(normalizedOutputSize({ width: 1706, height: 960 }), "1712x960");
+  assert.equal(normalizedOutputSize({ width: 1280, height: 720 }), "1280x720");
+  assert.equal(normalizedOutputSize({ width: 400, height: 300 }), "auto");
 });
 
 test("選択案だけを画像編集APIへ渡し、Base64のPNGを返す", async () => {
