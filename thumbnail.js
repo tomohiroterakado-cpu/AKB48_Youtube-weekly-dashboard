@@ -71,6 +71,7 @@ function bindThumbnailProtectionDrawing() {
 
   surface.addEventListener("pointerdown", (event) => {
     if (!thumbnailState.imageDataUrl) return;
+    event.preventDefault();
     origin = normalizedPointer(event, surface);
     draft = thumbnailEl("div", "thumbnailRegion thumbnailRegion--draft");
     surface.appendChild(draft);

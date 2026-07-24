@@ -20,6 +20,8 @@ test("thumbnail route exposes the complete Images2.0 production workflow", () =>
   assert.match(styles, /Images2\.0 高品質サムネイル制作/);
   assert.match(thumbnail, /location\.hash === "#thumbnail"/);
   assert.match(thumbnail, /を読み込みました。元画像で残したい顔・ロゴ・重要な文字/);
+  assert.match(index, /thumbnailOriginalPreview"[^>]*draggable="false"/);
+  assert.match(styles, /thumbnailPreviewSurface img[^\n]*pointer-events: none/);
 });
 
 test("thumbnail API keeps generation, composition planning, and quality gating server-side", () => {

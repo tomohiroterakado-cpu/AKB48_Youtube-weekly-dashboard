@@ -800,7 +800,7 @@ h2 {
 .thumbnailCopyFields { display: grid; gap: 10px; }
 .thumbnailCopyFields label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 800; }
 .thumbnailPreviewSurface { position: relative; overflow: hidden; aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: 7px; background: #24191b; touch-action: none; cursor: crosshair; }
-.thumbnailPreviewSurface img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.thumbnailPreviewSurface img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none; -webkit-user-drag: none; }
 .thumbnailPreviewHint { position: absolute; right: 10px; bottom: 10px; max-width: 280px; margin: 0; padding: 7px 9px; background: rgba(34, 31, 32, .78); color: white; font-size: 11px; line-height: 1.45; pointer-events: none; }
 .thumbnailRegion { position: absolute; border: 2px dashed #d3163a; background: rgba(211, 22, 58, .13); pointer-events: none; }
 .thumbnailRegion--draft { border-color: #c78a17; background: rgba(199, 138, 23, .16); }
