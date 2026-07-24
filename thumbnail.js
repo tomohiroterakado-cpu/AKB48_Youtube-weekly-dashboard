@@ -267,97 +267,7 @@ function compositeProtectedRegion(context, original, region, canvas) {
   context.drawImage(patch, x, y);
 }
 
-function wrapTelop(context, copy, maxWidth) {
-  const lines = [];
-  let line = "";
-  for (const character of Array.from(copy)) {
-    const next = line + character;
-    if (line && context.measureText(next).width > maxWidth) {
-      lines.push(line);
-      line = character;
-    } else {
-      line = next;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
-}
-
-function telopPalette(candidateId) {
-  const palettes = {
-    A: ["#e51d2e", "#f3a31c"],
-    B: ["#f02a3e", "#ffcd25"],
-    C: ["#f7f7f7", "#de1838"],
-    D: ["#f32d5d", "#7d34c6"],
-    E: ["#e81b45", "#f0b921"]
-  };
-  return palettes[candidateId] || palettes.A;
-}
-
-function drawExactTelop(context, copy, canvas, candidateId) {
-  const padding = Math.round(canvas.width * 0.032);
-  const area = {
-    x: padding,
-    y: Math.round(canvas.height * 0.67),
-    width: canvas.width - padding * 2,
-    height: Math.round(canvas.height * 0.29)
-  };
-  const typeface = '"Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif';
-  let fontSize = Math.min(Math.round(canvas.width * 0.115), Math.round(area.height * 0.48));
-  let lines = [];
-  while (fontSize >= 36) {
-    context.font = `900 ${fontSize}px ${typeface}`;
-    lines = wrapTelop(context, copy, area.width * 0.93);
-    if (lines.length <= 2 && lines.length * fontSize * 1.04 <= area.height) break;
-    fontSize -= 2;
-  }
-  if (!lines.length) return;
-  if (lines.length > 2) {
-    const characters = Array.from(copy);
-    const midpoint = Math.ceil(characters.length / 2);
-    lines = [characters.slice(0, midpoint).join(""), characters.slice(midpoint).join("")];
-    fontSize = Math.max(36, Math.round(area.height / 2.15));
-    context.font = `900 ${fontSize}px ${typeface}`;
-  }
-
-  context.save();
-  const plate = context.createLinearGradient(area.x, area.y, area.x, area.y + area.height);
-  plate.addColorStop(0, "rgba(17, 8, 14, 0.08)");
-  plate.addColorStop(0.25, "rgba(17, 8, 14, 0.64)");
-  plate.addColorStop(1, "rgba(17, 8, 14, 0.92)");
-  context.fillStyle = plate;
-  drawRoundedRect(context, area.x, area.y, area.width, area.height, Math.round(canvas.width * 0.018));
-  context.fill();
-
-  const [startColor, endColor] = telopPalette(candidateId);
-  const lineHeight = Math.round(fontSize * 1.02);
-  const blockHeight = lineHeight * lines.length;
-  let y = area.y + (area.height - blockHeight) / 2 + fontSize * 0.78;
-  lines.forEach((line) => {
-    const width = context.measureText(line).width;
-    const x = (canvas.width - width) / 2;
-    const gradient = context.createLinearGradient(x, y - fontSize, x, y);
-    gradient.addColorStop(0, "#fff7d0");
-    gradient.addColorStop(0.18, startColor);
-    gradient.addColorStop(1, endColor);
-    context.lineJoin = "round";
-    context.shadowColor = "rgba(0, 0, 0, .85)";
-    context.shadowBlur = Math.max(8, Math.round(fontSize * 0.12));
-    context.strokeStyle = "#100b0d";
-    context.lineWidth = Math.max(8, Math.round(fontSize * 0.18));
-    context.strokeText(line, x, y);
-    context.shadowBlur = 0;
-    context.strokeStyle = "rgba(255, 242, 196, .92)";
-    context.lineWidth = Math.max(3, Math.round(fontSize * 0.05));
-    context.strokeText(line, x, y);
-    context.fillStyle = gradient;
-    context.fillText(line, x, y);
-    y += lineHeight;
-  });
-  context.restore();
-}
-
-async function compositeThumbnail(generatedImageDataUrl) {
+async function compositeProtectedRegions(generatedImageDataUrl) {
   const [original, generated] = await Promise.all([thumbnailImage(thumbnailState.imageDataUrl), thumbnailImage(generatedImageDataUrl)]);
   const canvas = document.createElement("canvas");
   canvas.width = thumbnailState.sourceSize?.width || generated.naturalWidth;
@@ -365,8 +275,6 @@ async function compositeThumbnail(generatedImageDataUrl) {
   const context = canvas.getContext("2d");
   context.drawImage(generated, 0, 0, generated.naturalWidth, generated.naturalHeight, 0, 0, canvas.width, canvas.height);
   thumbnailState.protectedRegions.forEach((region) => compositeProtectedRegion(context, original, region, canvas));
-  const copy = thumbnailState.production?.selectedCandidate?.recommendedCopy || document.getElementById("thumbnailCopy").value.trim();
-  drawExactTelop(context, copy, canvas, thumbnailState.selectedCandidateId);
   return canvas.toDataURL("image/png");
 }
 
@@ -400,21 +308,21 @@ async function generateThumbnail() {
   try {
     generate.disabled = true;
     result.className = "infoItem";
-    result.textContent = "選択案をImages2.0で背景・装飾として高品質化しています。日本語テロップと保護領域は直後に正確に合成します...";
+    result.textContent = "選択案をImages2.0で高品質化しています。指定した保護範囲は直後に元画像へ戻します...";
     const generated = await api("/api/thumbnails/generate", {
       method: "POST",
       headers: adminHeaders(),
       body: JSON.stringify({ originalImage: thumbnailState.imageDataUrl, reviewToken: thumbnailState.reviewToken, candidateId: thumbnailState.selectedCandidateId, outputSize: thumbnailState.sourceSize })
     });
     thumbnailState.generatedImageDataUrl = generated.imageDataUrl;
-    thumbnailState.finalImageDataUrl = await compositeThumbnail(generated.imageDataUrl);
+    thumbnailState.finalImageDataUrl = await compositeProtectedRegions(generated.imageDataUrl);
     const finalPreview = document.getElementById("thumbnailFinalPreview");
     finalPreview.replaceChildren();
     const image = document.createElement("img"); image.src = thumbnailState.finalImageDataUrl; image.alt = "合成後のサムネイル";
     finalPreview.appendChild(image);
     renderThumbnailQuality();
     result.className = "infoItem";
-    result.textContent = "合成が完了しました。日本語テロップは入力した文言をそのまま正確に反映しています。最終品質を確認してください。";
+    result.textContent = "合成が完了しました。最終品質を確認してください。";
   } catch (error) {
     if (error.status === 409) {
       renderThumbnailRegenerationOption(error.message);

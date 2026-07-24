@@ -24,7 +24,6 @@ test("thumbnail route exposes the complete Images2.0 production workflow", () =>
   assert.match(styles, /thumbnailPreviewSurface img[^\n]*pointer-events: none/);
   assert.match(styles, /thumbnailRegion--ellipse/);
   assert.match(thumbnail, /createProtectionMask/);
-  assert.match(thumbnail, /drawExactTelop/);
 });
 
 test("thumbnail API keeps generation, composition planning, and quality gating server-side", () => {
@@ -36,5 +35,4 @@ test("thumbnail API keeps generation, composition planning, and quality gating s
   assert.match(server, /\/api\/thumbnails\/regenerate/);
   assert.match(styles, /Images2\.0 高品質サムネイル制作/);
   assert.match(fs.readFileSync(path.join(root, "thumbnail.js"), "utf8"), /今回だけ再生成する/);
-  assert.match(fs.readFileSync(path.join(root, "thumbnail.js"), "utf8"), /日本語テロップは入力した文言をそのまま正確に反映/);
 });

@@ -39,13 +39,12 @@ test("顔・日本語・顔被りに問題があれば完成を止める", () =>
   assert.deepEqual(quality.fallbacks, ["restore_original_faces", "photoshop_text", "reposition_telop"]);
 });
 
-test("Images2.0への指示は文字を描かせず、保護対象を明示する", () => {
+test("Images2.0への指示はテロップだけを変え、保護対象を明示する", () => {
   const production = selectThumbnailCandidate(createThumbnailReview(input), "A");
   const prompt = buildImageEditPrompt(production);
+  assert.match(prompt, /コラボウォールアートが大きすぎ！？/);
   assert.match(prompt, /左下の顔/);
   assert.match(prompt, /Do not add, remove, replace, or alter faces/);
-  assert.match(prompt, /Do not render any letters/);
-  assert.doesNotMatch(prompt, /コラボウォールアートが大きすぎ！？/);
 });
 
 test("画像生成APIは画面側の制限を回避した8MB超の画像を受け付けない", () => {
