@@ -13,7 +13,7 @@ const { syncLegacyWeeklyReport } = require("./lib/legacy-sheet-sync");
 const { confirmVideos, reclassifyUnconfirmedVideos, updateVideoAttributes } = require("./lib/review-service");
 const { createThumbnailReview, selectThumbnailCandidate, assessThumbnailQuality } = require("./lib/thumbnail-workflow");
 const { generateImages2Design } = require("./lib/images2-client");
-const { ThumbnailGenerationGuard, generationFingerprint, releasePersistentGeneration, reservePersistentGeneration, signThumbnailReview, verifyThumbnailReview } = require("./lib/thumbnail-session");
+const { ThumbnailGenerationGuard, completePersistentGeneration, generationFingerprint, releasePersistentGeneration, reservePersistentGeneration, signThumbnailReview, verifyThumbnailReview } = require("./lib/thumbnail-session");
 
 const root = __dirname;
 const port = Number(process.env.PORT || 8080);
@@ -219,6 +219,16 @@ async function handleApi(req, res, pathname) {
     const body = await readJson(req);
     return json(res, 200, selectThumbnailCandidate(verifyThumbnailReview(body.reviewToken, adminToken), body.candidateId));
   }
+  if (req.method === "POST" && pathname === "/api/thumbnails/regenerate") {
+    authorizeWrite(req);
+    const body = await readJson(req);
+    const review = verifyThumbnailReview(body.reviewToken, adminToken);
+    selectThumbnailCandidate(review, body.candidateId);
+    const fingerprint = generationFingerprint({ review, candidateId: body.candidateId, originalImage: body.originalImage });
+    thumbnailGenerationGuard.release(fingerprint);
+    await repository.mutate((state) => releasePersistentGeneration(state, fingerprint));
+    return json(res, 200, { released: true, message: "前回の生成ロックを解除しました。もう一度の生成は画像生成料金が発生する場合があります。" });
+  }
   if (req.method === "POST" && pathname === "/api/thumbnails/generate") {
     authorizeWrite(req);
     const body = await readJson(req);
@@ -233,6 +243,7 @@ async function handleApi(req, res, pathname) {
       persistentReservation = true;
       const generated = await generateImages2Design({ originalImage: body.originalImage, production, outputSize: body.outputSize });
       externalGenerationSucceeded = true;
+      await repository.mutate((state) => completePersistentGeneration(state, fingerprint));
       return json(res, 200, generated);
     } catch (error) {
       thumbnailGenerationGuard.release(fingerprint);

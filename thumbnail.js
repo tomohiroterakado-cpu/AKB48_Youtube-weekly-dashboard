@@ -268,11 +268,45 @@ async function generateThumbnail() {
     result.className = "infoItem";
     result.textContent = "合成が完了しました。最終品質を確認してください。";
   } catch (error) {
-    result.className = "errorItem";
-    result.textContent = error.message;
+    if (error.status === 409) {
+      renderThumbnailRegenerationOption(error.message);
+    } else {
+      result.className = "errorItem";
+      result.textContent = error.message;
+    }
   } finally {
     generate.disabled = Boolean(thumbnailState.finalImageDataUrl) || !thumbnailState.production;
   }
+}
+
+function renderThumbnailRegenerationOption(message) {
+  const result = document.getElementById("thumbnailStatus");
+  result.className = "warningItem";
+  result.replaceChildren(document.createTextNode(`${message} 完成画像がこの画面に残っていないため、今回だけ再生成することもできます。`));
+  const retry = thumbnailEl("button", "secondaryButton", "今回だけ再生成する");
+  retry.type = "button";
+  retry.addEventListener("click", async () => {
+    if (!window.confirm("同じ条件で画像をもう一度生成します。OpenAIの画像生成料金が追加で発生する場合があります。続けますか？")) return;
+    retry.disabled = true;
+    try {
+      await api("/api/thumbnails/regenerate", {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({
+          originalImage: thumbnailState.imageDataUrl,
+          reviewToken: thumbnailState.reviewToken,
+          candidateId: thumbnailState.selectedCandidateId
+        })
+      });
+      await generateThumbnail();
+    } catch (error) {
+      result.className = "errorItem";
+      result.textContent = error.message;
+      retry.disabled = false;
+    }
+  });
+  result.appendChild(document.createTextNode(" "));
+  result.appendChild(retry);
 }
 
 async function evaluateThumbnailQuality() {

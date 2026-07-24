@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { ThumbnailGenerationGuard, generationFingerprint, releasePersistentGeneration, reservePersistentGeneration, signThumbnailReview, verifyThumbnailReview } = require("../lib/thumbnail-session");
+const { ThumbnailGenerationGuard, completePersistentGeneration, generationFingerprint, releasePersistentGeneration, reservePersistentGeneration, signThumbnailReview, verifyThumbnailReview } = require("../lib/thumbnail-session");
 
 const review = { source: { requestedCopy: "新テロップ" }, protection: { protectedRegions: [] }, candidates: [{ id: "A" }] };
 
@@ -29,4 +29,14 @@ test("生成済み識別子は永続データでも24時間重複を防ぎ、失
   assert.doesNotThrow(() => reservePersistentGeneration(state, "same", 102));
   assert.doesNotThrow(() => reservePersistentGeneration(state, "expired", 0));
   assert.doesNotThrow(() => reservePersistentGeneration(state, "expired", (24 * 60 * 60 * 1000) + 1));
+});
+
+test("途中で止まった予約だけは短時間後に再試行でき、完了済みの生成は保護する", () => {
+  const state = { thumbnailGenerations: [] };
+  reservePersistentGeneration(state, "pending", 100);
+  assert.equal(state.thumbnailGenerations[0].status, "reserved");
+  assert.doesNotThrow(() => reservePersistentGeneration(state, "pending", 10 * 60 * 1000 + 101));
+  completePersistentGeneration(state, "pending", 10 * 60 * 1000 + 102);
+  assert.equal(state.thumbnailGenerations.find((item) => item.fingerprint === "pending").status, "completed");
+  assert.throws(() => reservePersistentGeneration(state, "pending", 10 * 60 * 1000 + 103), /生成済み/);
 });

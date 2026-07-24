@@ -43,7 +43,11 @@ function requireAdmin() {
 async function api(path, options = {}) {
   const response = await fetch(path, { cache: "no-store", ...options });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || `通信に失敗しました (${response.status})`);
+  if (!response.ok) {
+    const error = new Error(payload.error || `通信に失敗しました (${response.status})`);
+    error.status = response.status;
+    throw error;
+  }
   return payload;
 }
 

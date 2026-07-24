@@ -28,4 +28,7 @@ test("thumbnail API keeps generation, composition planning, and quality gating s
   });
   assert.match(server, /authorizeWrite\(req\)/);
   assert.match(server, /generateImages2Design/);
+  assert.match(server, /\/api\/thumbnails\/regenerate/);
+  assert.match(styles, /Images2\.0 高品質サムネイル制作/);
+  assert.match(fs.readFileSync(path.join(root, "thumbnail.js"), "utf8"), /今回だけ再生成する/);
 });
