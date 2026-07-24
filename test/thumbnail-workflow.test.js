@@ -45,6 +45,7 @@ test("Images2.0への指示はテロップだけを変え、保護対象を明�
   assert.match(prompt, /コラボウォールアートが大きすぎ！？/);
   assert.match(prompt, /左下の顔/);
   assert.match(prompt, /Do not add, remove, replace, or alter faces/);
+  assert.match(prompt, /one tone calmer than a flashy gaming thumbnail/);
 });
 
 test("画像生成APIは画面側の制限を回避した8MB超の画像を受け付けない", () => {
