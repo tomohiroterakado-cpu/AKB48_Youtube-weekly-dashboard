@@ -8,6 +8,7 @@ const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const director = fs.readFileSync(path.join(root, "director.js"), "utf8");
 const server = fs.readFileSync(path.join(root, "server.js"), "utf8");
 const styles = fs.readFileSync(path.join(root, "styles.css"), "utf8");
+const thumbnail = fs.readFileSync(path.join(root, "thumbnail.js"), "utf8");
 
 test("thumbnail route exposes the complete Images2.0 production workflow", () => {
   [
@@ -17,6 +18,8 @@ test("thumbnail route exposes the complete Images2.0 production workflow", () =>
   ].forEach((token) => assert.ok(index.includes(token), `index.html must include ${token}`));
   assert.match(director, /resolved === "thumbnail"/);
   assert.match(styles, /Images2\.0 高品質サムネイル制作/);
+  assert.match(thumbnail, /location\.hash === "#thumbnail"/);
+  assert.match(thumbnail, /を読み込みました。元画像で残したい顔・ロゴ・重要な文字/);
 });
 
 test("thumbnail API keeps generation, composition planning, and quality gating server-side", () => {

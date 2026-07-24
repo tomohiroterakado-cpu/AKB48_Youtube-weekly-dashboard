@@ -113,7 +113,9 @@ function resetThumbnailResult() {
   thumbnailState.finalImageDataUrl = "";
   document.getElementById("thumbnailCandidateRail").replaceChildren();
   document.getElementById("thumbnailQualityList").replaceChildren();
-  document.getElementById("thumbnailFinalPreview").replaceChildren();
+  document.getElementById("thumbnailFinalPreview").replaceChildren(
+    thumbnailEl("p", "emptyState", "生成・合成後の最終サムネイルがここに表示されます。")
+  );
   document.getElementById("thumbnailGenerate").disabled = true;
   document.getElementById("thumbnailDownload").disabled = true;
 }
@@ -137,6 +139,9 @@ async function readThumbnailFile() {
   thumbnailState.protectedRegions = [];
   resetThumbnailResult();
   renderThumbnailRegions();
+  const status = document.getElementById("thumbnailStatus");
+  status.className = "infoItem";
+  status.textContent = `「${file.name}」を読み込みました。元画像で残したい顔・ロゴ・重要な文字をドラッグで囲んでから、5案を設計してください。`;
 }
 
 function renderThumbnailCandidates() {
@@ -304,3 +309,7 @@ function loadThumbnailWorkspace() {
 }
 
 window.loadThumbnailWorkspace = loadThumbnailWorkspace;
+
+// director.js runs before this file. Initialize once more when a direct
+// link such as /#thumbnail opens this view before the route handler exists.
+if (location.hash === "#thumbnail") loadThumbnailWorkspace();
