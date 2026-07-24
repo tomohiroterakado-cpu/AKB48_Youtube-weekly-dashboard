@@ -14,14 +14,16 @@ test("thumbnail route exposes the complete Images2.0 production workflow", () =>
   [
     "data-route=\"thumbnail\"", "data-director-view=\"thumbnail\"", "thumbnailOriginalFile",
     "thumbnailPreviewSurface", "thumbnailReview", "thumbnailCandidateRail", "thumbnailGenerate",
-    "thumbnailQualityList", "thumbnailDownload", "thumbnailFinalPreview", "./thumbnail.js"
+    "thumbnailQualityList", "thumbnailDownload", "thumbnailFinalPreview", "data-thumbnail-shape", "./thumbnail.js"
   ].forEach((token) => assert.ok(index.includes(token), `index.html must include ${token}`));
   assert.match(director, /resolved === "thumbnail"/);
   assert.match(styles, /Images2\.0 高品質サムネイル制作/);
   assert.match(thumbnail, /location\.hash === "#thumbnail"/);
-  assert.match(thumbnail, /を読み込みました。元画像で残したい顔・ロゴ・重要な文字/);
+  assert.match(thumbnail, /を読み込みました。顔は楕円、ロゴや重要な文字は四角/);
   assert.match(index, /thumbnailOriginalPreview"[^>]*draggable="false"/);
   assert.match(styles, /thumbnailPreviewSurface img[^\n]*pointer-events: none/);
+  assert.match(styles, /thumbnailRegion--ellipse/);
+  assert.match(thumbnail, /createProtectionMask/);
 });
 
 test("thumbnail API keeps generation, composition planning, and quality gating server-side", () => {

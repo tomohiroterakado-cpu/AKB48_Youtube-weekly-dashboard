@@ -7,7 +7,7 @@ const input = {
   jobId: "kawasaki-brave-thunders-wallart",
   requestedCopy: "コラボウォールアートが大きすぎ！？",
   protectedRegions: [
-    { name: "左下の顔", type: "face", x: 0.21, y: 0.59, w: 0.13, h: 0.18 },
+    { name: "左下の顔", type: "face", shape: "ellipse", x: 0.21, y: 0.59, w: 0.13, h: 0.18 },
     { name: "協業ロゴ", type: "logo", x: 0.55, y: 0, w: 0.41, h: 0.19 }
   ]
 };
@@ -18,6 +18,7 @@ test("5案を提示し、選択前は生成を許可しない", () => {
   assert.deepEqual(review.candidates.map((candidate) => candidate.id), ["A", "B", "C", "D", "E"]);
   assert.equal(review.generation.allowed, false);
   assert.equal(review.protection.faceStrategy, "restore_original_after_generation");
+  assert.equal(review.protection.protectedRegions[0].shape, "ellipse");
 });
 
 test("選択案だけをImages2.0制作ブリーフへ変換する", () => {

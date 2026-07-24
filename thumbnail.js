@@ -5,6 +5,7 @@ const thumbnailState = {
   production: null,
   selectedCandidateId: "",
   protectedRegions: [],
+  drawingShape: "ellipse",
   generatedImageDataUrl: "",
   finalImageDataUrl: "",
   sourceSize: null
@@ -41,7 +42,8 @@ function renderThumbnailRegions() {
   surface.querySelectorAll(".thumbnailRegion").forEach((node) => node.remove());
   list.replaceChildren();
   thumbnailState.protectedRegions.forEach((region, index) => {
-    const overlay = thumbnailEl("div", "thumbnailRegion");
+    const shape = region.shape === "ellipse" ? "ellipse" : "rect";
+    const overlay = thumbnailEl("div", `thumbnailRegion thumbnailRegion--${shape}`);
     overlay.style.left = `${region.x * 100}%`;
     overlay.style.top = `${region.y * 100}%`;
     overlay.style.width = `${region.w * 100}%`;
@@ -49,7 +51,8 @@ function renderThumbnailRegions() {
     overlay.title = region.name;
     surface.appendChild(overlay);
     const row = thumbnailEl("div", "thumbnailProtectedRow");
-    row.append(thumbnailEl("span", "", region.name), thumbnailEl("small", "", region.type === "logo" ? "ロゴ" : "顔・重要部分"));
+    const typeLabel = region.type === "logo" ? "ロゴ" : "顔・重要部分";
+    row.append(thumbnailEl("span", "", region.name), thumbnailEl("small", "", `${typeLabel}・${shape === "ellipse" ? "楕円" : "四角"}`));
     const remove = thumbnailEl("button", "textButton", "削除");
     remove.type = "button";
     remove.addEventListener("click", () => {
@@ -59,7 +62,16 @@ function renderThumbnailRegions() {
     row.appendChild(remove);
     list.appendChild(row);
   });
-  if (!thumbnailState.protectedRegions.length) list.appendChild(thumbnailEl("p", "meta", "人物の顔・ロゴをドラッグして保護領域に追加してください。"));
+  if (!thumbnailState.protectedRegions.length) list.appendChild(thumbnailEl("p", "meta", "顔は楕円、ロゴや文字は四角を選び、ドラッグして保護領域に追加してください。"));
+}
+
+function setThumbnailDrawingShape(shape) {
+  thumbnailState.drawingShape = shape === "rect" ? "rect" : "ellipse";
+  document.querySelectorAll("[data-thumbnail-shape]").forEach((button) => {
+    const active = button.dataset.thumbnailShape === thumbnailState.drawingShape;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
 }
 
 function bindThumbnailProtectionDrawing() {
@@ -73,7 +85,7 @@ function bindThumbnailProtectionDrawing() {
     if (!thumbnailState.imageDataUrl) return;
     event.preventDefault();
     origin = normalizedPointer(event, surface);
-    draft = thumbnailEl("div", "thumbnailRegion thumbnailRegion--draft");
+    draft = thumbnailEl("div", `thumbnailRegion thumbnailRegion--${thumbnailState.drawingShape} thumbnailRegion--draft`);
     surface.appendChild(draft);
     surface.setPointerCapture(event.pointerId);
   });
@@ -97,7 +109,7 @@ function bindThumbnailProtectionDrawing() {
     draft.remove();
     if (w > 0.03 && h > 0.03) {
       const label = prompt("保護する対象を入力してください（例：中央の顔、右上ロゴ）", "顔");
-      if (label) thumbnailState.protectedRegions.push({ name: label, type: /ロゴ|logo/i.test(label) ? "logo" : "face", x, y, w, h });
+      if (label) thumbnailState.protectedRegions.push({ name: label, type: /ロゴ|logo/i.test(label) ? "logo" : "face", shape: thumbnailState.drawingShape, x, y, w, h });
     }
     origin = null;
     draft = null;
@@ -142,7 +154,7 @@ async function readThumbnailFile() {
   renderThumbnailRegions();
   const status = document.getElementById("thumbnailStatus");
   status.className = "infoItem";
-  status.textContent = `「${file.name}」を読み込みました。元画像で残したい顔・ロゴ・重要な文字をドラッグで囲んでから、5案を設計してください。`;
+  status.textContent = `「${file.name}」を読み込みました。顔は楕円、ロゴや重要な文字は四角を選んでドラッグで囲んでから、5案を設計してください。`;
 }
 
 function renderThumbnailCandidates() {
@@ -198,12 +210,61 @@ async function selectThumbnailCandidate(candidateId) {
     thumbnailState.selectedCandidateId = candidateId;
     document.getElementById("thumbnailGenerate").disabled = false;
     result.className = "infoItem";
-    result.textContent = `${production.selectedCandidate.name}を選択しました。指定した保護範囲は生成後に元画像から前面復帰します。`;
+    result.textContent = `${production.selectedCandidate.name}を選択しました。指定した保護範囲は生成後に境界をなじませて元画像から前面復帰します。`;
     renderThumbnailCandidates();
   } catch (error) {
     result.className = "errorItem";
     result.textContent = error.message;
   }
+}
+
+function drawRoundedRect(context, x, y, width, height, radius) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + safeRadius, y);
+  context.arcTo(x + width, y, x + width, y + height, safeRadius);
+  context.arcTo(x + width, y + height, x, y + height, safeRadius);
+  context.arcTo(x, y + height, x, y, safeRadius);
+  context.arcTo(x, y, x + width, y, safeRadius);
+  context.closePath();
+}
+
+function createProtectionMask(width, height, shape) {
+  const mask = document.createElement("canvas");
+  mask.width = width;
+  mask.height = height;
+  const context = mask.getContext("2d");
+  const feather = Math.max(3, Math.min(18, Math.round(Math.min(width, height) * 0.055)));
+  const inset = feather * 1.5;
+  context.save();
+  context.fillStyle = "white";
+  context.filter = `blur(${feather}px)`;
+  if (shape === "ellipse") {
+    context.beginPath();
+    context.ellipse(width / 2, height / 2, Math.max(1, width / 2 - inset), Math.max(1, height / 2 - inset), 0, 0, Math.PI * 2);
+    context.fill();
+  } else {
+    drawRoundedRect(context, inset, inset, Math.max(1, width - inset * 2), Math.max(1, height - inset * 2), Math.min(18, Math.max(4, Math.min(width, height) * 0.12)));
+    context.fill();
+  }
+  context.restore();
+  return mask;
+}
+
+function compositeProtectedRegion(context, original, region, canvas) {
+  const x = Math.round(region.x * canvas.width);
+  const y = Math.round(region.y * canvas.height);
+  const w = Math.round(region.w * canvas.width);
+  const h = Math.round(region.h * canvas.height);
+  if (w < 2 || h < 2) return;
+  const patch = document.createElement("canvas");
+  patch.width = w;
+  patch.height = h;
+  const patchContext = patch.getContext("2d");
+  patchContext.drawImage(original, region.x * original.naturalWidth, region.y * original.naturalHeight, region.w * original.naturalWidth, region.h * original.naturalHeight, 0, 0, w, h);
+  patchContext.globalCompositeOperation = "destination-in";
+  patchContext.drawImage(createProtectionMask(w, h, region.shape), 0, 0);
+  context.drawImage(patch, x, y);
 }
 
 async function compositeProtectedRegions(generatedImageDataUrl) {
@@ -213,13 +274,7 @@ async function compositeProtectedRegions(generatedImageDataUrl) {
   canvas.height = thumbnailState.sourceSize?.height || generated.naturalHeight;
   const context = canvas.getContext("2d");
   context.drawImage(generated, 0, 0, generated.naturalWidth, generated.naturalHeight, 0, 0, canvas.width, canvas.height);
-  thumbnailState.protectedRegions.forEach((region) => {
-    const x = Math.round(region.x * canvas.width);
-    const y = Math.round(region.y * canvas.height);
-    const w = Math.round(region.w * canvas.width);
-    const h = Math.round(region.h * canvas.height);
-    context.drawImage(original, region.x * original.naturalWidth, region.y * original.naturalHeight, region.w * original.naturalWidth, region.h * original.naturalHeight, x, y, w, h);
-  });
+  thumbnailState.protectedRegions.forEach((region) => compositeProtectedRegion(context, original, region, canvas));
   return canvas.toDataURL("image/png");
 }
 
@@ -336,6 +391,10 @@ function downloadThumbnail() {
 
 function loadThumbnailWorkspace() {
   bindThumbnailProtectionDrawing();
+  document.querySelectorAll("[data-thumbnail-shape]").forEach((button) => {
+    button.onclick = () => setThumbnailDrawingShape(button.dataset.thumbnailShape);
+  });
+  setThumbnailDrawingShape(thumbnailState.drawingShape);
   document.getElementById("thumbnailOriginalFile").onchange = () => readThumbnailFile().catch((error) => { document.getElementById("thumbnailStatus").className = "errorItem"; document.getElementById("thumbnailStatus").textContent = error.message; });
   document.getElementById("thumbnailReview").onclick = createThumbnailReview;
   document.getElementById("thumbnailGenerate").onclick = generateThumbnail;

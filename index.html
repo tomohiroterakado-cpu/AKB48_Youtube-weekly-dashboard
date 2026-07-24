@@ -143,7 +143,12 @@
           <p id="thumbnailStatus" class="meta" aria-live="polite">元画像を読み込み、指定した顔・ロゴ・変えたくない箇所を保護してから5案を比較します。画像を生成する時だけ外部AIを利用し、利用料金が発生する場合があります。</p>
         </section>
         <section class="directorPanel thumbnailPreviewPanel">
-          <div class="panelHeader"><div><span class="sectionLabel">保護領域</span><h2>顔・ロゴをドラッグして囲む</h2><p class="meta">指定して囲んだ箇所だけ、生成後に元画像から前面へ戻します。</p></div></div>
+          <div class="panelHeader"><div><span class="sectionLabel">保護領域</span><h2>顔・ロゴをドラッグして囲む</h2><p class="meta">顔は楕円、ロゴや文字は四角で囲みます。生成後は境界をなじませて元画像から前面へ戻します。</p></div></div>
+          <div class="thumbnailShapePicker" role="group" aria-label="保護領域の形状">
+            <span>選択形状</span>
+            <button type="button" class="thumbnailShapeButton active" data-thumbnail-shape="ellipse" aria-pressed="true">楕円</button>
+            <button type="button" class="thumbnailShapeButton" data-thumbnail-shape="rect" aria-pressed="false">四角</button>
+          </div>
           <div id="thumbnailPreviewSurface" class="thumbnailPreviewSurface"><img id="thumbnailOriginalPreview" alt="元サムネイルのプレビュー" draggable="false" hidden><p id="thumbnailPreviewHint" class="thumbnailPreviewHint" hidden>ドラッグして、顔・ロゴ・変えたくない箇所を保護してください。</p></div>
           <div id="thumbnailProtectedList" class="thumbnailProtectedList"></div>
         </section>

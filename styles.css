@@ -803,7 +803,11 @@ h2 {
 .thumbnailPreviewSurface img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none; -webkit-user-drag: none; }
 .thumbnailPreviewHint { position: absolute; right: 10px; bottom: 10px; max-width: 280px; margin: 0; padding: 7px 9px; background: rgba(34, 31, 32, .78); color: white; font-size: 11px; line-height: 1.45; pointer-events: none; }
 .thumbnailRegion { position: absolute; border: 2px dashed #d3163a; background: rgba(211, 22, 58, .13); pointer-events: none; }
+.thumbnailRegion--ellipse { border-radius: 50%; }
 .thumbnailRegion--draft { border-color: #c78a17; background: rgba(199, 138, 23, .16); }
+.thumbnailShapePicker { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; color: var(--muted); font-size: 12px; font-weight: 800; }
+.thumbnailShapeButton { min-width: 58px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; background: #fffdfa; color: var(--ink); font: inherit; cursor: pointer; }
+.thumbnailShapeButton.active { border-color: var(--akb-red); background: #fff0f3; color: var(--akb-red); }
 .thumbnailProtectedList { display: grid; gap: 7px; margin-top: 12px; }
 .thumbnailProtectedRow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 9px 10px; border: 1px solid var(--line); background: #fffdfa; font-size: 13px; }
 .thumbnailProtectedRow small { color: var(--muted); }
