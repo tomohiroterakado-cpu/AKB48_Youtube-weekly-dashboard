@@ -154,7 +154,7 @@ async function readThumbnailFile() {
   renderThumbnailRegions();
   const status = document.getElementById("thumbnailStatus");
   status.className = "infoItem";
-  status.textContent = `「${file.name}」を読み込みました。顔は楕円、ロゴや重要な文字は四角を選んでドラッグで囲んでから、5案を設計してください。`;
+  status.textContent = `「${file.name}」を読み込みました。顔は楕円、ロゴや重要な文字は四角を選んでドラッグで囲んでから、6案を設計してください。`;
 }
 
 function renderThumbnailCandidates() {
@@ -177,7 +177,7 @@ async function createThumbnailReview() {
   try {
     if (!thumbnailState.imageDataUrl) await readThumbnailFile();
     result.className = "infoItem";
-    result.textContent = "入力したテロップと、指定した保護範囲をもとに5案を作成しています...";
+    result.textContent = "入力したテロップと、指定した保護範囲をもとに6案を作成しています...";
     const review = await api("/api/thumbnails/review", {
       method: "POST",
       headers: adminHeaders(),
@@ -190,7 +190,7 @@ async function createThumbnailReview() {
     thumbnailState.review = review;
     thumbnailState.reviewToken = review.reviewToken;
     thumbnailState.selectedCandidateId = "";
-    result.textContent = "5案を用意しました。1案を選ぶと、選択案だけをImages2.0で生成します。";
+    result.textContent = "6案を用意しました。1案を選ぶと、選択案だけをImages2.0で生成します。";
     renderThumbnailCandidates();
   } catch (error) {
     result.className = "errorItem";

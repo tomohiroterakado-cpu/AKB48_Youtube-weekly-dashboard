@@ -12,10 +12,12 @@ const input = {
   ]
 };
 
-test("5案を提示し、選択前は生成を許可しない", () => {
+test("6案を提示し、指定テロップを変えずに選択前は生成を許可しない", () => {
   const review = createThumbnailReview(input);
   assert.equal(review.status, "awaiting_selection");
-  assert.deepEqual(review.candidates.map((candidate) => candidate.id), ["A", "B", "C", "D", "E"]);
+  assert.deepEqual(review.candidates.map((candidate) => candidate.id), ["A", "B", "C", "D", "E", "F"]);
+  assert.ok(review.candidates.every((candidate) => candidate.recommendedCopy === input.requestedCopy));
+  assert.equal(review.candidates.at(-1).name, "シンプルテロップ型");
   assert.equal(review.generation.allowed, false);
   assert.equal(review.protection.faceStrategy, "restore_original_after_generation");
   assert.equal(review.protection.protectedRegions[0].shape, "ellipse");
@@ -23,7 +25,7 @@ test("5案を提示し、選択前は生成を許可しない", () => {
 
 test("選択案だけをImages2.0制作ブリーフへ変換する", () => {
   const review = createThumbnailReview(input);
-  assert.throws(() => selectThumbnailCandidate(review, "Z"), /候補 A〜E/);
+  assert.throws(() => selectThumbnailCandidate(review, "Z"), /候補 A〜F/);
   const selected = selectThumbnailCandidate(review, "D");
   assert.equal(selected.status, "ready_for_generation");
   assert.equal(selected.selectedCandidate.name, "坂道チャンネル参考型");
