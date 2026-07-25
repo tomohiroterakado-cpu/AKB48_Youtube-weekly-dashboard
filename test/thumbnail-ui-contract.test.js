@@ -24,6 +24,9 @@ test("thumbnail route exposes the complete Images2.0 production workflow", () =>
   assert.match(styles, /thumbnailPreviewSurface img[^\n]*pointer-events: none/);
   assert.match(styles, /thumbnailRegion--ellipse/);
   assert.match(thumbnail, /createProtectionMask/);
+  assert.match(thumbnail, /renderThumbnailSafetyFallbackOption/);
+  assert.match(thumbnail, /AIなしでテロップを合成する/);
+  assert.match(thumbnail, /createTextOnlyThumbnail/);
 });
 
 test("thumbnail API keeps generation, composition planning, and quality gating server-side", () => {

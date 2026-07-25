@@ -821,6 +821,8 @@ h2 {
 .thumbnailCandidate .meta { margin-top: auto; color: var(--muted); font-size: 12px; }
 .thumbnailCandidateId { display: grid; place-items: center; width: 28px; height: 28px; background: var(--akb-red); color: white; font-size: 13px; }
 .thumbnailCandidate button { align-self: end; }
+.thumbnailSafetyFallback { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.thumbnailSafetyFallback .secondaryButton { flex: 0 0 auto; }
 .thumbnailQualityList { display: grid; gap: 2px; }
 .thumbnailQualityItem { display: flex; gap: 9px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); color: var(--ink); font-size: 13px; font-weight: 700; }
 .thumbnailQualityItem input { flex: 0 0 auto; width: 18px; min-height: 18px; }

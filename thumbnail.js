@@ -278,6 +278,90 @@ async function compositeProtectedRegions(generatedImageDataUrl) {
   return canvas.toDataURL("image/png");
 }
 
+function wrapTextForThumbnail(context, text, maxWidth) {
+  const lines = [];
+  let line = "";
+  for (const character of Array.from(String(text || ""))) {
+    const candidate = line + character;
+    if (line && context.measureText(candidate).width > maxWidth) {
+      lines.push(line);
+      line = character;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function textOnlyTelopLayout(context, text, width, height) {
+  const maxWidth = width * 0.88;
+  const maxFont = Math.round(Math.min(width * 0.067, height * 0.105));
+  const minFont = Math.max(28, Math.round(width * 0.028));
+  for (let size = maxFont; size >= minFont; size -= 2) {
+    context.font = `900 ${size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
+    const lines = wrapTextForThumbnail(context, text, maxWidth);
+    if (lines.length <= 2) return { size, lines };
+  }
+  context.font = `900 ${minFont}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
+  return { size: minFont, lines: wrapTextForThumbnail(context, text, maxWidth) };
+}
+
+async function createTextOnlyThumbnail() {
+  const original = await thumbnailImage(thumbnailState.imageDataUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = thumbnailState.sourceSize?.width || original.naturalWidth;
+  canvas.height = thumbnailState.sourceSize?.height || original.naturalHeight;
+  const context = canvas.getContext("2d");
+  context.drawImage(original, 0, 0, original.naturalWidth, original.naturalHeight, 0, 0, canvas.width, canvas.height);
+
+  const text = document.getElementById("thumbnailCopy").value.trim();
+  const layout = textOnlyTelopLayout(context, text, canvas.width, canvas.height);
+  const lineHeight = Math.round(layout.size * 1.15);
+  const panelHeight = Math.max(Math.round(canvas.height * 0.18), lineHeight * layout.lines.length + Math.round(canvas.height * 0.075));
+  const panelY = canvas.height - panelHeight - Math.round(canvas.height * 0.035);
+  const panelX = Math.round(canvas.width * 0.035);
+  const panelWidth = canvas.width - panelX * 2;
+
+  context.save();
+  const panelGradient = context.createLinearGradient(0, panelY, 0, panelY + panelHeight);
+  panelGradient.addColorStop(0, "rgba(35, 23, 29, 0.86)");
+  panelGradient.addColorStop(1, "rgba(18, 14, 18, 0.92)");
+  context.fillStyle = panelGradient;
+  drawRoundedRect(context, panelX, panelY, panelWidth, panelHeight, Math.round(canvas.height * 0.025));
+  context.fill();
+  context.font = `900 ${layout.size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.lineJoin = "round";
+  context.lineWidth = Math.max(3, Math.round(layout.size * 0.075));
+  context.strokeStyle = "rgba(25, 12, 17, 0.92)";
+  context.fillStyle = "#fffaf2";
+  context.shadowColor = "rgba(0, 0, 0, 0.5)";
+  context.shadowBlur = Math.max(4, Math.round(layout.size * 0.12));
+  const textCenterY = panelY + panelHeight / 2;
+  layout.lines.forEach((line, index) => {
+    const y = textCenterY + (index - (layout.lines.length - 1) / 2) * lineHeight;
+    context.strokeText(line, canvas.width / 2, y);
+    context.fillText(line, canvas.width / 2, y);
+  });
+  context.restore();
+
+  thumbnailState.protectedRegions.forEach((region) => compositeProtectedRegion(context, original, region, canvas));
+  return canvas.toDataURL("image/png");
+}
+
+function showThumbnailFinal(imageDataUrl, alt) {
+  thumbnailState.finalImageDataUrl = imageDataUrl;
+  const finalPreview = document.getElementById("thumbnailFinalPreview");
+  finalPreview.replaceChildren();
+  const image = document.createElement("img");
+  image.src = imageDataUrl;
+  image.alt = alt;
+  finalPreview.appendChild(image);
+  renderThumbnailQuality();
+}
+
 function renderThumbnailQuality() {
   const list = document.getElementById("thumbnailQualityList");
   list.replaceChildren();
@@ -315,17 +399,14 @@ async function generateThumbnail() {
       body: JSON.stringify({ originalImage: thumbnailState.imageDataUrl, reviewToken: thumbnailState.reviewToken, candidateId: thumbnailState.selectedCandidateId, outputSize: thumbnailState.sourceSize })
     });
     thumbnailState.generatedImageDataUrl = generated.imageDataUrl;
-    thumbnailState.finalImageDataUrl = await compositeProtectedRegions(generated.imageDataUrl);
-    const finalPreview = document.getElementById("thumbnailFinalPreview");
-    finalPreview.replaceChildren();
-    const image = document.createElement("img"); image.src = thumbnailState.finalImageDataUrl; image.alt = "合成後のサムネイル";
-    finalPreview.appendChild(image);
-    renderThumbnailQuality();
+    showThumbnailFinal(await compositeProtectedRegions(generated.imageDataUrl), "AI生成と保護領域合成後のサムネイル");
     result.className = "infoItem";
     result.textContent = "合成が完了しました。最終品質を確認してください。";
   } catch (error) {
     if (error.status === 409) {
       renderThumbnailRegenerationOption(error.message);
+    } else if (/safety system|safety_violation|safety violations/i.test(error.message)) {
+      renderThumbnailSafetyFallbackOption(error.message);
     } else {
       result.className = "errorItem";
       result.textContent = error.message;
@@ -333,6 +414,28 @@ async function generateThumbnail() {
   } finally {
     generate.disabled = Boolean(thumbnailState.finalImageDataUrl) || !thumbnailState.production;
   }
+}
+
+function renderThumbnailSafetyFallbackOption(message) {
+  const result = document.getElementById("thumbnailStatus");
+  result.className = "warningItem thumbnailSafetyFallback";
+  result.replaceChildren(document.createTextNode("画像AIの安全判定で編集が停止しました。元画像を変えず、指定テロップだけを合成する代替モードを使えます。"));
+  const fallback = thumbnailEl("button", "secondaryButton", "AIなしでテロップを合成する");
+  fallback.type = "button";
+  fallback.addEventListener("click", async () => {
+    fallback.disabled = true;
+    try {
+      showThumbnailFinal(await createTextOnlyThumbnail(), "元画像にテロップのみを合成したサムネイル");
+      result.className = "infoItem";
+      result.textContent = "AIを使わず、元画像そのままで指定テロップを合成しました。追加料金はかかりません。最終品質を確認してください。";
+    } catch (error) {
+      result.className = "errorItem";
+      result.textContent = error.message || message;
+      fallback.disabled = false;
+    }
+  });
+  result.appendChild(document.createTextNode(" "));
+  result.appendChild(fallback);
 }
 
 function renderThumbnailRegenerationOption(message) {
