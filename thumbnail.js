@@ -43,6 +43,16 @@ function renderThumbnailRegions() {
   list.replaceChildren();
   thumbnailState.protectedRegions.forEach((region, index) => {
     const shape = region.shape === "ellipse" ? "ellipse" : "rect";
+    if (region.type === "face") {
+      const expanded = expandedFaceProtection(region);
+      const effectiveOverlay = thumbnailEl("div", `thumbnailRegion thumbnailRegion--effective thumbnailRegion--${expanded.shape === "ellipse" ? "ellipse" : "rect"}`);
+      effectiveOverlay.style.left = `${expanded.x * 100}%`;
+      effectiveOverlay.style.top = `${expanded.y * 100}%`;
+      effectiveOverlay.style.width = `${expanded.w * 100}%`;
+      effectiveOverlay.style.height = `${expanded.h * 100}%`;
+      effectiveOverlay.title = `${region.name}の実効保護範囲`;
+      surface.appendChild(effectiveOverlay);
+    }
     const overlay = thumbnailEl("div", `thumbnailRegion thumbnailRegion--${shape}`);
     overlay.style.left = `${region.x * 100}%`;
     overlay.style.top = `${region.y * 100}%`;
@@ -51,8 +61,9 @@ function renderThumbnailRegions() {
     overlay.title = region.name;
     surface.appendChild(overlay);
     const row = thumbnailEl("div", "thumbnailProtectedRow");
-    const typeLabel = region.type === "logo" ? "ロゴ" : "顔・重要部分";
-    row.append(thumbnailEl("span", "", region.name), thumbnailEl("small", "", `${typeLabel}・${shape === "ellipse" ? "楕円" : "四角"}`));
+    const typeLabel = region.type === "logo" ? "ロゴ" : "顔・人物保護";
+    const protectionNote = region.type === "face" ? "・実効保護範囲を表示" : "";
+    row.append(thumbnailEl("span", "", region.name), thumbnailEl("small", "", `${typeLabel}・${shape === "ellipse" ? "楕円" : "四角"}${protectionNote}`));
     const remove = thumbnailEl("button", "textButton", "削除");
     remove.type = "button";
     remove.addEventListener("click", () => {
@@ -253,13 +264,75 @@ function createProtectionMask(width, height, shape) {
 
 function expandedFaceProtection(region) {
   if (region.type !== "face") return region;
-  const padX = Math.max(0.035, Math.min(0.18, region.w * 0.8));
-  const padY = Math.max(0.05, Math.min(0.22, region.h * 0.8));
+  // Face-only selections are expanded to include hair, neck, and shoulders before the AI edit.
+  // This prevents the model from reconstructing a second face immediately around a restored patch.
+  const padX = Math.max(0.045, Math.min(0.22, region.w * 0.95));
+  const topPad = Math.max(0.035, Math.min(0.16, region.h * 0.55));
+  const bottomPad = Math.max(0.09, Math.min(0.34, region.h * 1.9));
   const left = Math.max(0, region.x - padX);
-  const top = Math.max(0, region.y - padY);
+  const top = Math.max(0, region.y - topPad);
   const right = Math.min(1, region.x + region.w + padX);
-  const bottom = Math.min(1, region.y + region.h + padY);
-  return { ...region, name: `${region.name}（人物保護拡張）`, shape: "rect", x: left, y: top, w: right - left, h: bottom - top };
+  const bottom = Math.min(1, region.y + region.h + bottomPad);
+  return { ...region, name: `${region.name}（人物保護拡張）`, shape: "ellipse", x: left, y: top, w: right - left, h: bottom - top };
+}
+
+function drawRegionPath(context, region, width, height) {
+  const x = region.x * width;
+  const y = region.y * height;
+  const w = region.w * width;
+  const h = region.h * height;
+  context.beginPath();
+  if (region.shape === "ellipse") {
+    context.ellipse(x + w / 2, y + h / 2, Math.max(1, w / 2), Math.max(1, h / 2), 0, 0, Math.PI * 2);
+  } else {
+    drawRoundedRect(context, x, y, Math.max(1, w), Math.max(1, h), Math.min(28, Math.max(7, Math.min(w, h) * 0.14)));
+  }
+}
+
+function alignedThumbnailDimension(value) {
+  const numeric = Math.max(512, Math.round(Number(value) || 0));
+  const lower = Math.floor(numeric / 16) * 16;
+  const upper = Math.ceil(numeric / 16) * 16;
+  return numeric - lower <= upper - numeric ? lower : upper;
+}
+
+async function createImagesEditAssets() {
+  const original = await thumbnailImage(thumbnailState.imageDataUrl);
+  let width = alignedThumbnailDimension(thumbnailState.sourceSize?.width || original.naturalWidth);
+  let height = alignedThumbnailDimension(thumbnailState.sourceSize?.height || original.naturalHeight);
+  let originalImage = "";
+  const maxSourceBytes = 7.2 * 1024 * 1024;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const sourceCanvas = document.createElement("canvas");
+    sourceCanvas.width = width;
+    sourceCanvas.height = height;
+    const sourceContext = sourceCanvas.getContext("2d");
+    sourceContext.imageSmoothingQuality = "high";
+    sourceContext.drawImage(original, 0, 0, original.naturalWidth, original.naturalHeight, 0, 0, width, height);
+    originalImage = sourceCanvas.toDataURL("image/png");
+    const encodedBytes = Math.floor((originalImage.length - originalImage.indexOf(",") - 1) * 0.75);
+    if (encodedBytes <= maxSourceBytes) break;
+    width = alignedThumbnailDimension(width * 0.86);
+    height = alignedThumbnailDimension(height * 0.86);
+  }
+  if (!originalImage) throw new Error("元画像を編集用に変換できませんでした。");
+
+  // Transparent pixels are editable. Opaque pixels mark the original people/logos that must remain.
+  const maskCanvas = document.createElement("canvas");
+  maskCanvas.width = width;
+  maskCanvas.height = height;
+  const maskContext = maskCanvas.getContext("2d");
+  maskContext.fillStyle = "rgba(255, 255, 255, 1)";
+  thumbnailState.protectedRegions.forEach((region) => {
+    const protectedRegion = expandedFaceProtection(region);
+    drawRegionPath(maskContext, protectedRegion, width, height);
+    maskContext.fill();
+  });
+  return {
+    originalImage,
+    protectionMask: maskCanvas.toDataURL("image/png"),
+    outputSize: { width, height }
+  };
 }
 
 function compositeProtectedRegion(context, original, region, canvas) {
@@ -404,11 +477,12 @@ async function generateThumbnail() {
   try {
     generate.disabled = true;
     result.className = "infoItem";
-    result.textContent = "選択案をImages2.0で高品質化しています。指定した保護範囲は直後に元画像へ戻します...";
+    result.textContent = "選択案をImages2.0で高品質化しています。人物・ロゴは実効保護マスクで固定し、編集後も原画へ戻します...";
+    const assets = await createImagesEditAssets();
     const generated = await api("/api/thumbnails/generate", {
       method: "POST",
       headers: adminHeaders(),
-      body: JSON.stringify({ originalImage: thumbnailState.imageDataUrl, reviewToken: thumbnailState.reviewToken, candidateId: thumbnailState.selectedCandidateId, outputSize: thumbnailState.sourceSize })
+      body: JSON.stringify({ originalImage: assets.originalImage, protectionMask: assets.protectionMask, reviewToken: thumbnailState.reviewToken, candidateId: thumbnailState.selectedCandidateId, outputSize: assets.outputSize })
     });
     thumbnailState.generatedImageDataUrl = generated.imageDataUrl;
     showThumbnailFinal(await compositeProtectedRegions(generated.imageDataUrl), "AI生成と保護領域合成後のサムネイル");

@@ -50,6 +50,12 @@ test("Images2.0への指示はテロップだけを変え、保護対象を明�
   assert.match(prompt, /one tone calmer than a flashy gaming thumbnail/);
 });
 
+test("人物保護マスクを使う場合は、マスクの不透明領域を固定するよう指示する", () => {
+  const production = selectThumbnailCandidate(createThumbnailReview(input), "A");
+  const prompt = buildImageEditPrompt(production, { hasProtectionMask: true });
+  assert.match(prompt, /opaque regions are locked original assets/);
+});
+
 test("画像生成APIは画面側の制限を回避した8MB超の画像を受け付けない", () => {
   const image = `data:image/png;base64,${Buffer.alloc(MAX_SOURCE_IMAGE_BYTES + 1).toString("base64")}`;
   assert.throws(() => dataUrlToBlob(image), /8MB以下/);
@@ -66,6 +72,7 @@ test("選択案だけを画像編集APIへ渡し、Base64のPNGを返す", async
   let request;
   const output = await generateImages2Design({
     originalImage: "data:image/png;base64,iVBORw0KGgo=",
+    protectionMask: "data:image/png;base64,iVBORw0KGgo=",
     production,
     outputSize: { width: 1280, height: 720 },
     apiKey: "test-key",
@@ -78,6 +85,7 @@ test("選択案だけを画像編集APIへ渡し、Base64のPNGを返す", async
   assert.equal(request.url, "https://api.openai.com/v1/images/edits");
   assert.equal(request.options.body.get("model"), "gpt-image-2");
   assert.ok(request.options.body.get("image[]"));
+  assert.ok(request.options.body.get("mask"));
   assert.equal(request.options.body.get("size"), "1280x720");
   assert.equal(output.outputSize, "1280x720");
   assert.equal(output.imageDataUrl, "data:image/png;base64,ZmFrZQ==");

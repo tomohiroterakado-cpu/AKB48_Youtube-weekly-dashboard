@@ -241,7 +241,7 @@ async function handleApi(req, res, pathname) {
     try {
       await repository.mutate((state) => reservePersistentGeneration(state, fingerprint));
       persistentReservation = true;
-      const generated = await generateImages2Design({ originalImage: body.originalImage, production, outputSize: body.outputSize });
+      const generated = await generateImages2Design({ originalImage: body.originalImage, protectionMask: body.protectionMask, production, outputSize: body.outputSize });
       externalGenerationSucceeded = true;
       await repository.mutate((state) => completePersistentGeneration(state, fingerprint));
       return json(res, 200, generated);
