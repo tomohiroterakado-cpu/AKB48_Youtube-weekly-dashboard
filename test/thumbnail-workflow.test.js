@@ -46,7 +46,7 @@ test("Images2.0への指示はテロップだけを変え、保護対象を明�
   const prompt = buildImageEditPrompt(production);
   assert.match(prompt, /コラボウォールアートが大きすぎ！？/);
   assert.match(prompt, /左下の顔/);
-  assert.match(prompt, /Do not add, remove, replace, or alter faces/);
+  assert.match(prompt, /Do not add, remove, duplicate, rearrange, crop, replace, or alter people/);
   assert.match(prompt, /one tone calmer than a flashy gaming thumbnail/);
 });
 

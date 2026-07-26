@@ -234,7 +234,7 @@ function createProtectionMask(width, height, shape) {
   mask.width = width;
   mask.height = height;
   const context = mask.getContext("2d");
-  const feather = Math.max(3, Math.min(18, Math.round(Math.min(width, height) * 0.055)));
+  const feather = Math.max(2, Math.min(10, Math.round(Math.min(width, height) * 0.028)));
   const inset = feather * 1.5;
   context.save();
   context.fillStyle = "white";
@@ -251,19 +251,31 @@ function createProtectionMask(width, height, shape) {
   return mask;
 }
 
+function expandedFaceProtection(region) {
+  if (region.type !== "face") return region;
+  const padX = Math.max(0.035, Math.min(0.18, region.w * 0.8));
+  const padY = Math.max(0.05, Math.min(0.22, region.h * 0.8));
+  const left = Math.max(0, region.x - padX);
+  const top = Math.max(0, region.y - padY);
+  const right = Math.min(1, region.x + region.w + padX);
+  const bottom = Math.min(1, region.y + region.h + padY);
+  return { ...region, name: `${region.name}（人物保護拡張）`, shape: "rect", x: left, y: top, w: right - left, h: bottom - top };
+}
+
 function compositeProtectedRegion(context, original, region, canvas) {
-  const x = Math.round(region.x * canvas.width);
-  const y = Math.round(region.y * canvas.height);
-  const w = Math.round(region.w * canvas.width);
-  const h = Math.round(region.h * canvas.height);
+  const protectedRegion = expandedFaceProtection(region);
+  const x = Math.round(protectedRegion.x * canvas.width);
+  const y = Math.round(protectedRegion.y * canvas.height);
+  const w = Math.round(protectedRegion.w * canvas.width);
+  const h = Math.round(protectedRegion.h * canvas.height);
   if (w < 2 || h < 2) return;
   const patch = document.createElement("canvas");
   patch.width = w;
   patch.height = h;
   const patchContext = patch.getContext("2d");
-  patchContext.drawImage(original, region.x * original.naturalWidth, region.y * original.naturalHeight, region.w * original.naturalWidth, region.h * original.naturalHeight, 0, 0, w, h);
+  patchContext.drawImage(original, protectedRegion.x * original.naturalWidth, protectedRegion.y * original.naturalHeight, protectedRegion.w * original.naturalWidth, protectedRegion.h * original.naturalHeight, 0, 0, w, h);
   patchContext.globalCompositeOperation = "destination-in";
-  patchContext.drawImage(createProtectionMask(w, h, region.shape), 0, 0);
+  patchContext.drawImage(createProtectionMask(w, h, protectedRegion.shape), 0, 0);
   context.drawImage(patch, x, y);
 }
 
