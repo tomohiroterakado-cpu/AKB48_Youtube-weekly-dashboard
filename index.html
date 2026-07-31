@@ -279,7 +279,7 @@
 
     <main id="thumbnailView" class="directorPage" data-director-view="thumbnail" hidden>
       <div class="directorPageHeader">
-        <div><p class="eyebrow">HIGH QUALITY MODE</p><h1>サムネイル制作</h1><p class="meta">コスト優先なら2案、比較優先なら6案を低画質で確認し、選んだ1案だけをImages2.0で高品質生成します。</p></div>
+        <div><p class="eyebrow">HIGH QUALITY MODE</p><h1>サムネイル制作</h1><p class="meta">元画像を守りながら、6案の比較からImages2.0の高品質テロップへ進みます。</p></div>
       </div>
       <section class="thumbnailWorkspace">
         <section class="directorPanel thumbnailSourcePanel">
@@ -292,10 +292,10 @@
               <button id="thumbnailReview" class="primaryButton" type="button">6案を設計する</button>
             </div>
           </div>
-          <p id="thumbnailStatus" class="meta" aria-live="polite">元画像を読み込み、指定した顔・ロゴ・変えたくない箇所を保護してから6案を比較します。変更後のテロップ文言は、保護領域の外に自動確保した安全領域へ正確に配置します。画像AIが安全判定で使えない場合は、元画像を変えずにテロップだけを合成する代替モードを選べます。</p>
+          <p id="thumbnailStatus" class="meta" aria-live="polite">元画像を読み込み、指定した顔・ロゴ・変えたくない箇所を保護してから6案を比較します。画像AIが安全判定で使えない場合は、元画像を変えずにテロップだけを合成する代替モードを選べます。</p>
         </section>
         <section class="directorPanel thumbnailPreviewPanel">
-          <div class="panelHeader"><div><span class="sectionLabel">保護領域</span><h2>顔・ロゴをドラッグして囲む</h2><p class="meta">顔は楕円、ロゴや文字は四角で囲みます。指定した範囲の内部は、生成後も元画像のまま完全に残します。</p></div></div>
+          <div class="panelHeader"><div><span class="sectionLabel">保護領域</span><h2>顔・ロゴをドラッグして囲む</h2><p class="meta">顔は楕円、ロゴや文字は四角で囲みます。生成後は境界をなじませて元画像から前面へ戻します。</p></div></div>
           <div class="thumbnailShapePicker" role="group" aria-label="保護領域の形状">
             <span>選択形状</span>
             <button type="button" class="thumbnailShapeButton active" data-thumbnail-shape="ellipse" aria-pressed="true">楕円</button>
@@ -307,20 +307,12 @@
         <aside class="directorPanel thumbnailQualityPanel">
           <div class="panelHeader"><div><span class="sectionLabel">品質ゲート</span><h2>公開前の最終確認</h2></div></div>
           <div id="thumbnailQualityList" class="thumbnailQualityList"><p class="meta">生成後に確認項目が表示されます。</p></div>
-          <button id="thumbnailGenerate" class="primaryButton" type="button" disabled>選択案を高画質で本生成</button>
+          <button id="thumbnailGenerate" class="primaryButton" type="button" disabled>選択案をImages2.0で生成</button>
           <button id="thumbnailDownload" class="secondaryButton" type="button" disabled>最終PNGをダウンロード</button>
         </aside>
       </section>
       <section class="directorPanel">
-        <div class="panelHeader"><div><span class="sectionLabel">クリエイティブ案</span><h2>テーマの異なる6案を比較する</h2><p class="meta">コスト優先では任意の2案、比較優先では6案すべてを低画質で生成します。本生成はその後に選ぶ1案だけです。</p></div></div>
-        <div id="thumbnailPreviewControls" class="thumbnailPreviewControls" hidden>
-          <div id="thumbnailPreviewModePicker" class="thumbnailPreviewModePicker" role="radiogroup" aria-label="低画質プレビューの比較方法">
-            <label><input type="radio" name="thumbnailPreviewMode" value="selected-two" checked>コスト優先：2案だけ低画質プレビュー</label>
-            <label><input type="radio" name="thumbnailPreviewMode" value="all-six">比較優先：6案すべて低画質プレビュー</label>
-          </div>
-          <p id="thumbnailPreviewSelection" class="meta" aria-live="polite">比較する候補を2案選んでください（0 / 2）</p>
-          <button id="thumbnailGeneratePreviews" class="secondaryButton" type="button" disabled>選んだ2案を低画質で比較する</button>
-        </div>
+        <div class="panelHeader"><div><span class="sectionLabel">クリエイティブ案</span><h2>テーマの異なる6案から選ぶ</h2><p class="meta">生成するのは、選択した1案だけです。</p></div></div>
         <div id="thumbnailCandidateRail" class="thumbnailCandidateRail"></div>
       </section>
       <section class="directorPanel" id="thumbnailFinalPanel">
@@ -456,6 +448,6 @@
     <script src="./app.js"></script>
     <script src="./director.js"></script>
     <script src="./prepublish.js?v=20260731"></script>
-  <script src="./thumbnail.js?v=20260801-seamless-telop"></script>
+    <script src="./thumbnail.js?v=20260727-restore"></script>
   </body>
 </html>

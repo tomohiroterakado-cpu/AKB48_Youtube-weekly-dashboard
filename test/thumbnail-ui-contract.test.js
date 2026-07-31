@@ -13,7 +13,7 @@ const thumbnail = fs.readFileSync(path.join(root, "thumbnail.js"), "utf8");
 test("thumbnail route exposes the complete Images2.0 production workflow", () => {
   [
     "data-route=\"thumbnail\"", "data-director-view=\"thumbnail\"", "thumbnailOriginalFile",
-    "thumbnailPreviewSurface", "thumbnailReview", "thumbnailCandidateRail", "thumbnailPreviewControls", "thumbnailPreviewModePicker", "thumbnailGeneratePreviews", "thumbnailGenerate",
+    "thumbnailPreviewSurface", "thumbnailReview", "thumbnailCandidateRail", "thumbnailGenerate",
     "thumbnailQualityList", "thumbnailDownload", "thumbnailFinalPreview", "data-thumbnail-shape", "./thumbnail.js"
   ].forEach((token) => assert.ok(index.includes(token), `index.html must include ${token}`));
   assert.match(director, /resolved === "thumbnail"/);
@@ -23,23 +23,14 @@ test("thumbnail route exposes the complete Images2.0 production workflow", () =>
   assert.match(index, /thumbnailOriginalPreview"[^>]*draggable="false"/);
   assert.match(styles, /thumbnailPreviewSurface img[^\n]*pointer-events: none/);
   assert.match(styles, /thumbnailRegion--ellipse/);
-  assert.doesNotMatch(thumbnail, /createProtectionMask/);
-  assert.match(thumbnail, /context\.clip\(\)/);
-  assert.match(thumbnail, /every selected pixel stays original/);
+  assert.match(thumbnail, /createProtectionMask/);
   assert.match(thumbnail, /renderThumbnailSafetyFallbackOption/);
   assert.match(thumbnail, /AIなしでテロップを合成する/);
   assert.match(thumbnail, /createTextOnlyThumbnail/);
-  assert.match(thumbnail, /drawExactTelopInSafeArea/);
-  assert.match(thumbnail, /activeTelopSafeArea/);
-  assert.match(thumbnail, /function drawStylizedTelop\(context, text, layout, x, y, palette\)/);
-  assert.match(thumbnail, /function traceProtectedRegion\(context, region, canvas\)/);
-  assert.match(thumbnail, /outside edge is softened/);
-  assert.doesNotMatch(thumbnail, /panelGradient/);
-  assert.match(thumbnail, /指定テロップは保護領域の外に確保した安全領域へ正確に配置します/);
 });
 
 test("thumbnail API keeps generation, composition planning, and quality gating server-side", () => {
-  ["/api/thumbnails/review", "/api/thumbnails/select", "/api/thumbnails/previews", "/api/thumbnails/generate", "/api/thumbnails/quality"].forEach((route) => {
+  ["/api/thumbnails/review", "/api/thumbnails/select", "/api/thumbnails/generate", "/api/thumbnails/quality"].forEach((route) => {
     assert.ok(server.includes(route), `server.js must include ${route}`);
   });
   assert.match(server, /authorizeWrite\(req\)/);
@@ -47,12 +38,4 @@ test("thumbnail API keeps generation, composition planning, and quality gating s
   assert.match(server, /\/api\/thumbnails\/regenerate/);
   assert.match(styles, /Images2\.0 高品質サムネイル制作/);
   assert.match(fs.readFileSync(path.join(root, "thumbnail.js"), "utf8"), /今回だけ再生成する/);
-  assert.match(thumbnail, /比較できるのは2案までです/);
-  assert.match(thumbnail, /低画質プレビューを\$\{payload\.requestedCount \|\| candidateIds\.length\}案表示しました/);
-  assert.match(thumbnail, /all-six/);
-  assert.match(thumbnail, /6案すべてを低画質で比較する/);
-  assert.match(thumbnail, /mode: thumbnailState\.previewMode/);
-  assert.match(thumbnail, /candidateIds,/);
-  assert.match(server, /selectAllThumbnailPreviewCandidates/);
-  assert.match(server, /quality: "low"/);
 });
