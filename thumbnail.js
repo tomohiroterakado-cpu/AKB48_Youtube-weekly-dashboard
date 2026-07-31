@@ -278,7 +278,7 @@ async function createThumbnailReview() {
     thumbnailState.previewMode = "selected-two";
     thumbnailState.previewCandidateIds = [];
     thumbnailState.previewImages = {};
-    result.textContent = "6案を用意しました。コスト優先では比較したい2案、比較優先では6案すべてを低画質で生成できます。";
+    result.textContent = "6案を用意しました。指定テロップは保護領域の外に確保した安全領域へ正確に配置します。コスト優先では比較したい2案、比較優先では6案すべてを低画質で生成できます。";
     renderThumbnailCandidates();
   } catch (error) {
     result.className = "errorItem";
@@ -339,7 +339,7 @@ async function selectThumbnailCandidate(candidateId) {
     thumbnailState.selectedCandidateId = candidateId;
     document.getElementById("thumbnailGenerate").disabled = false;
     result.className = "infoItem";
-    result.textContent = `${production.selectedCandidate.name}を選択しました。指定した保護範囲の内部は、生成後も元画像のピクセルをそのまま維持します。`;
+    result.textContent = `${production.selectedCandidate.name}を選択しました。保護範囲は元画像のピクセルをそのまま維持し、指定テロップは保護範囲の外にある安全領域へ完全表示します。`;
     renderThumbnailCandidates();
   } catch (error) {
     result.className = "errorItem";
@@ -377,6 +377,7 @@ async function compositeProtectedRegions(generatedImageDataUrl) {
   const context = canvas.getContext("2d");
   context.drawImage(generated, 0, 0, generated.naturalWidth, generated.naturalHeight, 0, 0, canvas.width, canvas.height);
   thumbnailState.protectedRegions.forEach((region) => compositeProtectedRegion(context, original, region, canvas));
+  drawExactTelopInSafeArea(context, canvas);
   return canvas.toDataURL("image/png");
 }
 
@@ -397,16 +398,64 @@ function wrapTextForThumbnail(context, text, maxWidth) {
 }
 
 function textOnlyTelopLayout(context, text, width, height) {
-  const maxWidth = width * 0.88;
-  const maxFont = Math.round(Math.min(width * 0.067, height * 0.105));
-  const minFont = Math.max(28, Math.round(width * 0.028));
+  const maxWidth = width;
+  const maxFont = Math.max(18, Math.round(Math.min(width * 0.105, height * 0.43)));
+  const minFont = Math.max(16, Math.round(Math.min(width * 0.035, height * 0.16)));
   for (let size = maxFont; size >= minFont; size -= 2) {
     context.font = `900 ${size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
     const lines = wrapTextForThumbnail(context, text, maxWidth);
-    if (lines.length <= 2) return { size, lines };
+    const lineHeight = Math.round(size * 1.14);
+    if (lines.length <= 3 && lineHeight * lines.length <= height) return { size, lines, lineHeight };
   }
   context.font = `900 ${minFont}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
-  return { size: minFont, lines: wrapTextForThumbnail(context, text, maxWidth) };
+  return { size: minFont, lines: wrapTextForThumbnail(context, text, maxWidth), lineHeight: Math.round(minFont * 1.14) };
+}
+
+function activeTelopSafeArea() {
+  return thumbnailState.production?.images2Brief?.telopSafeArea || thumbnailState.review?.protection?.telopSafeArea || null;
+}
+
+function requestedThumbnailCopy() {
+  return thumbnailState.review?.source?.requestedCopy || document.getElementById("thumbnailCopy").value.trim();
+}
+
+function drawExactTelopInSafeArea(context, canvas) {
+  const safeArea = activeTelopSafeArea();
+  const text = requestedThumbnailCopy();
+  if (!safeArea || !text) return;
+  const panelX = Math.round(safeArea.x * canvas.width);
+  const panelY = Math.round(safeArea.y * canvas.height);
+  const panelWidth = Math.round(safeArea.w * canvas.width);
+  const panelHeight = Math.round(safeArea.h * canvas.height);
+  const inset = Math.max(8, Math.round(Math.min(panelWidth, panelHeight) * 0.075));
+  const layout = textOnlyTelopLayout(context, text, panelWidth - inset * 2, panelHeight - inset * 2);
+  if (layout.lines.length > 3 || layout.lineHeight * layout.lines.length > panelHeight - inset * 2) {
+    throw new Error("指定テロップが安全領域に収まりません。文言を短くするか、保護領域を少し狭めてください。");
+  }
+
+  context.save();
+  const panelGradient = context.createLinearGradient(panelX, panelY, panelX, panelY + panelHeight);
+  panelGradient.addColorStop(0, "rgba(36, 22, 29, 0.88)");
+  panelGradient.addColorStop(1, "rgba(18, 13, 18, 0.94)");
+  context.fillStyle = panelGradient;
+  drawRoundedRect(context, panelX, panelY, panelWidth, panelHeight, Math.max(10, Math.round(panelHeight * 0.13)));
+  context.fill();
+  context.font = `900 ${layout.size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.lineJoin = "round";
+  context.lineWidth = Math.max(2, Math.round(layout.size * 0.065));
+  context.strokeStyle = "rgba(25, 12, 17, 0.96)";
+  context.fillStyle = "#fffaf2";
+  context.shadowColor = "rgba(0, 0, 0, 0.52)";
+  context.shadowBlur = Math.max(3, Math.round(layout.size * 0.1));
+  const textCenterY = panelY + panelHeight / 2;
+  layout.lines.forEach((line, index) => {
+    const y = textCenterY + (index - (layout.lines.length - 1) / 2) * layout.lineHeight;
+    context.strokeText(line, panelX + panelWidth / 2, y);
+    context.fillText(line, panelX + panelWidth / 2, y);
+  });
+  context.restore();
 }
 
 async function createTextOnlyThumbnail() {
@@ -416,40 +465,8 @@ async function createTextOnlyThumbnail() {
   canvas.height = thumbnailState.sourceSize?.height || original.naturalHeight;
   const context = canvas.getContext("2d");
   context.drawImage(original, 0, 0, original.naturalWidth, original.naturalHeight, 0, 0, canvas.width, canvas.height);
-
-  const text = document.getElementById("thumbnailCopy").value.trim();
-  const layout = textOnlyTelopLayout(context, text, canvas.width, canvas.height);
-  const lineHeight = Math.round(layout.size * 1.15);
-  const panelHeight = Math.max(Math.round(canvas.height * 0.18), lineHeight * layout.lines.length + Math.round(canvas.height * 0.075));
-  const panelY = canvas.height - panelHeight - Math.round(canvas.height * 0.035);
-  const panelX = Math.round(canvas.width * 0.035);
-  const panelWidth = canvas.width - panelX * 2;
-
-  context.save();
-  const panelGradient = context.createLinearGradient(0, panelY, 0, panelY + panelHeight);
-  panelGradient.addColorStop(0, "rgba(35, 23, 29, 0.86)");
-  panelGradient.addColorStop(1, "rgba(18, 14, 18, 0.92)");
-  context.fillStyle = panelGradient;
-  drawRoundedRect(context, panelX, panelY, panelWidth, panelHeight, Math.round(canvas.height * 0.025));
-  context.fill();
-  context.font = `900 ${layout.size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.lineJoin = "round";
-  context.lineWidth = Math.max(3, Math.round(layout.size * 0.075));
-  context.strokeStyle = "rgba(25, 12, 17, 0.92)";
-  context.fillStyle = "#fffaf2";
-  context.shadowColor = "rgba(0, 0, 0, 0.5)";
-  context.shadowBlur = Math.max(4, Math.round(layout.size * 0.12));
-  const textCenterY = panelY + panelHeight / 2;
-  layout.lines.forEach((line, index) => {
-    const y = textCenterY + (index - (layout.lines.length - 1) / 2) * lineHeight;
-    context.strokeText(line, canvas.width / 2, y);
-    context.fillText(line, canvas.width / 2, y);
-  });
-  context.restore();
-
   thumbnailState.protectedRegions.forEach((region) => compositeProtectedRegion(context, original, region, canvas));
+  drawExactTelopInSafeArea(context, canvas);
   return canvas.toDataURL("image/png");
 }
 
@@ -494,7 +511,7 @@ async function generateThumbnail() {
   try {
     generate.disabled = true;
     result.className = "infoItem";
-    result.textContent = "選択案をImages2.0で高品質化しています。指定した保護範囲の内部は元画像のまま完全に復元します...";
+    result.textContent = "選択案をImages2.0で高品質化しています。保護範囲を元画像で完全復元した後、指定テロップを安全領域へ正確に配置します...";
     const generated = await api("/api/thumbnails/generate", {
       method: "POST",
       headers: adminHeaders(),
@@ -503,7 +520,7 @@ async function generateThumbnail() {
     thumbnailState.generatedImageDataUrl = generated.imageDataUrl;
     showThumbnailFinal(await compositeProtectedRegions(generated.imageDataUrl), "AI生成と保護領域合成後のサムネイル");
     result.className = "infoItem";
-    result.textContent = "合成が完了しました。最終品質を確認してください。";
+    result.textContent = "合成が完了しました。指定テロップは保護領域と重ならない安全領域へ配置済みです。最終品質を確認してください。";
   } catch (error) {
     if (error.status === 409) {
       renderThumbnailRegenerationOption(error.message);

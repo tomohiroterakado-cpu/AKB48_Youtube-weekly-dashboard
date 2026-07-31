@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { createThumbnailReview, selectThumbnailCandidate, selectThumbnailPreviewCandidates, selectAllThumbnailPreviewCandidates, assessThumbnailQuality } = require("../lib/thumbnail-workflow");
+const { createThumbnailReview, computeTelopSafeArea, selectThumbnailCandidate, selectThumbnailPreviewCandidates, selectAllThumbnailPreviewCandidates, assessThumbnailQuality } = require("../lib/thumbnail-workflow");
 const { MAX_SOURCE_IMAGE_BYTES, dataUrlToBlob, buildImageEditPrompt, generateImages2Design, normalizedOutputSize } = require("../lib/images2-client");
 
 const input = {
@@ -21,6 +21,23 @@ test("6案を提示し、指定テロップを変えずに選択前は生成を�
   assert.equal(review.generation.allowed, false);
   assert.equal(review.protection.faceStrategy, "restore_original_after_generation");
   assert.equal(review.protection.protectedRegions[0].shape, "ellipse");
+  assert.ok(review.protection.telopSafeArea);
+  assert.equal(review.protection.textStrategy, "safe_area_exact_overlay");
+});
+
+test("テロップ安全領域は保護領域と十分な余白を含めて重ならない", () => {
+  const safeArea = computeTelopSafeArea(input.protectedRegions);
+  assert.ok(safeArea);
+  input.protectedRegions.forEach((region) => {
+    const padded = {
+      x: Math.max(0, region.x - 0.024),
+      y: Math.max(0, region.y - 0.024),
+      w: Math.min(1, region.x + region.w + 0.024) - Math.max(0, region.x - 0.024),
+      h: Math.min(1, region.y + region.h + 0.024) - Math.max(0, region.y - 0.024)
+    };
+    const overlaps = safeArea.x < padded.x + padded.w && safeArea.x + safeArea.w > padded.x && safeArea.y < padded.y + padded.h && safeArea.y + safeArea.h > padded.y;
+    assert.equal(overlaps, false);
+  });
 });
 
 test("選択案だけをImages2.0制作ブリーフへ変換する", () => {
@@ -30,6 +47,7 @@ test("選択案だけをImages2.0制作ブリーフへ変換する", () => {
   assert.equal(selected.status, "ready_for_generation");
   assert.equal(selected.selectedCandidate.name, "坂道チャンネル参考型");
   assert.equal(selected.roles.originalComposite, "顔・ロゴ保護担当");
+  assert.deepEqual(selected.images2Brief.telopSafeArea, review.protection.telopSafeArea);
 });
 
 test("低画質プレビュー用には重複なしで任意の2案だけを選べる", () => {
@@ -53,12 +71,15 @@ test("顔・日本語・顔被りに問題があれば完成を止める", () =>
   assert.deepEqual(quality.fallbacks, ["restore_original_faces", "photoshop_text", "reposition_telop"]);
 });
 
-test("Images2.0への指示はテロップだけを変え、保護対象を明示する", () => {
+test("Images2.0への指示は保護対象とテロップ安全領域を明示する", () => {
   const production = selectThumbnailCandidate(createThumbnailReview(input), "A");
   const prompt = buildImageEditPrompt(production);
   assert.match(prompt, /コラボウォールアートが大きすぎ！？/);
   assert.match(prompt, /左下の顔/);
   assert.match(prompt, /Do not add, remove, replace, or alter faces/);
+  assert.match(prompt, /Reserve this clear text-safe area/);
+  assert.match(prompt, /The application will typeset the exact requested copy after generation/);
+  assert.match(prompt, /Do not render Japanese text/);
   assert.match(prompt, /one tone calmer than a flashy gaming thumbnail/);
 });
 
