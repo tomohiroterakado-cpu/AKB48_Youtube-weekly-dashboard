@@ -80,6 +80,7 @@ test("Images2.0への指示は保護対象とテロップ安全領域を明示�
   assert.match(prompt, /Reserve this clear text-safe area/);
   assert.match(prompt, /The application will typeset the exact requested copy after generation/);
   assert.match(prompt, /Do not render Japanese text/);
+  assert.match(prompt, /without creating a banner, base panel, ribbon, plaque, or caption plate/);
   assert.match(prompt, /one tone calmer than a flashy gaming thumbnail/);
 });
 

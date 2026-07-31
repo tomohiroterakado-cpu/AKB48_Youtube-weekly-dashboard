@@ -347,6 +347,21 @@ async function selectThumbnailCandidate(candidateId) {
   }
 }
 
+function traceProtectedRegion(context, region, canvas) {
+  const x = Math.round(region.x * canvas.width);
+  const y = Math.round(region.y * canvas.height);
+  const w = Math.round(region.w * canvas.width);
+  const h = Math.round(region.h * canvas.height);
+  if (w < 2 || h < 2) return false;
+  context.beginPath();
+  if (region.shape === "ellipse") {
+    context.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+  } else {
+    context.rect(x, y, w, h);
+  }
+  return true;
+}
+
 function compositeProtectedRegion(context, original, region, canvas) {
   const x = Math.round(region.x * canvas.width);
   const y = Math.round(region.y * canvas.height);
@@ -358,13 +373,32 @@ function compositeProtectedRegion(context, original, region, canvas) {
   const sourceW = Math.round(region.w * original.naturalWidth);
   const sourceH = Math.round(region.h * original.naturalHeight);
 
-  // Do not feather or inset the user-selected region: every selected pixel stays original.
+  // every selected pixel stays original; only the outside edge is softened.
+  const feather = Math.max(12, Math.min(52, Math.round(Math.min(canvas.width, canvas.height) * 0.018)));
+  const restored = document.createElement("canvas");
+  restored.width = canvas.width;
+  restored.height = canvas.height;
+  const restoredContext = restored.getContext("2d");
+  restoredContext.drawImage(original, 0, 0, original.naturalWidth, original.naturalHeight, 0, 0, canvas.width, canvas.height);
+
+  const mask = document.createElement("canvas");
+  mask.width = canvas.width;
+  mask.height = canvas.height;
+  const maskContext = mask.getContext("2d");
+  maskContext.save();
+  maskContext.filter = `blur(${feather}px)`;
+  maskContext.fillStyle = "#fff";
+  if (traceProtectedRegion(maskContext, region, canvas)) maskContext.fill();
+  maskContext.restore();
+  maskContext.fillStyle = "#fff";
+  if (traceProtectedRegion(maskContext, region, canvas)) maskContext.fill();
+  restoredContext.globalCompositeOperation = "destination-in";
+  restoredContext.drawImage(mask, 0, 0);
+  context.drawImage(restored, 0, 0);
+
+  // Restore the selected core after feathering so no selected pixel is blended or altered.
   context.save();
-  if (region.shape === "ellipse") {
-    context.beginPath();
-    context.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
-    context.clip();
-  }
+  if (traceProtectedRegion(context, region, canvas)) context.clip();
   context.drawImage(original, sourceX, sourceY, sourceW, sourceH, x, y, w, h);
   context.restore();
 }
@@ -415,19 +449,53 @@ function activeTelopSafeArea() {
   return thumbnailState.production?.images2Brief?.telopSafeArea || thumbnailState.review?.protection?.telopSafeArea || null;
 }
 
-function drawRoundedRect(context, x, y, width, height, radius) {
-  const safeRadius = Math.max(0, Math.min(radius, width / 2, height / 2));
-  context.beginPath();
-  context.moveTo(x + safeRadius, y);
-  context.arcTo(x + width, y, x + width, y + height, safeRadius);
-  context.arcTo(x + width, y + height, x, y + height, safeRadius);
-  context.arcTo(x, y + height, x, y, safeRadius);
-  context.arcTo(x, y, x + width, y, safeRadius);
-  context.closePath();
+function telopPalette() {
+  const candidateId = thumbnailState.production?.selectedCandidate?.id || "A";
+  const palettes = {
+    A: { light: "#f8fcff", mid: "#5ec9f6", dark: "#1262b8", edge: "#092e73" },
+    B: { light: "#fff4d9", mid: "#ff9c4a", dark: "#d33d45", edge: "#6e1832" },
+    C: { light: "#fbffe0", mid: "#55d2c5", dark: "#138387", edge: "#07505f" },
+    D: { light: "#fff4e6", mid: "#d6a76a", dark: "#9b5e51", edge: "#542f48" },
+    E: { light: "#fff5fb", mid: "#ff8fbb", dark: "#cb4684", edge: "#6e285c" },
+    F: { light: "#ffffff", mid: "#efefef", dark: "#bfc4ce", edge: "#343844" }
+  };
+  return palettes[candidateId] || palettes.A;
 }
 
 function requestedThumbnailCopy() {
   return thumbnailState.review?.source?.requestedCopy || document.getElementById("thumbnailCopy").value.trim();
+}
+
+function drawStylizedTelop(context, text, layout, x, y, palette) {
+  const gradient = context.createLinearGradient(0, y - layout.size, 0, y + layout.size);
+  gradient.addColorStop(0, palette.light);
+  gradient.addColorStop(0.46, palette.mid);
+  gradient.addColorStop(1, palette.dark);
+
+  context.save();
+  context.lineJoin = "round";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.font = `900 ${layout.size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
+
+  context.shadowColor = "rgba(0, 0, 0, 0.5)";
+  context.shadowBlur = Math.max(4, Math.round(layout.size * 0.12));
+  context.shadowOffsetY = Math.max(3, Math.round(layout.size * 0.09));
+  context.lineWidth = Math.max(5, Math.round(layout.size * 0.22));
+  context.strokeStyle = "rgba(20, 16, 28, 0.94)";
+  context.strokeText(text, x, y);
+
+  context.shadowColor = "transparent";
+  context.lineWidth = Math.max(4, Math.round(layout.size * 0.15));
+  context.strokeStyle = "rgba(255, 255, 255, 0.96)";
+  context.strokeText(text, x, y);
+
+  context.lineWidth = Math.max(2, Math.round(layout.size * 0.075));
+  context.strokeStyle = palette.edge;
+  context.strokeText(text, x, y);
+  context.fillStyle = gradient;
+  context.fillText(text, x, y);
+  context.restore();
 }
 
 function drawExactTelopInSafeArea(context, canvas) {
@@ -444,29 +512,12 @@ function drawExactTelopInSafeArea(context, canvas) {
     throw new Error("指定テロップが安全領域に収まりません。文言を短くするか、保護領域を少し狭めてください。");
   }
 
-  context.save();
-  const panelGradient = context.createLinearGradient(panelX, panelY, panelX, panelY + panelHeight);
-  panelGradient.addColorStop(0, "rgba(36, 22, 29, 0.88)");
-  panelGradient.addColorStop(1, "rgba(18, 13, 18, 0.94)");
-  context.fillStyle = panelGradient;
-  drawRoundedRect(context, panelX, panelY, panelWidth, panelHeight, Math.max(10, Math.round(panelHeight * 0.13)));
-  context.fill();
-  context.font = `900 ${layout.size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.lineJoin = "round";
-  context.lineWidth = Math.max(2, Math.round(layout.size * 0.065));
-  context.strokeStyle = "rgba(25, 12, 17, 0.96)";
-  context.fillStyle = "#fffaf2";
-  context.shadowColor = "rgba(0, 0, 0, 0.52)";
-  context.shadowBlur = Math.max(3, Math.round(layout.size * 0.1));
   const textCenterY = panelY + panelHeight / 2;
+  const palette = telopPalette();
   layout.lines.forEach((line, index) => {
     const y = textCenterY + (index - (layout.lines.length - 1) / 2) * layout.lineHeight;
-    context.strokeText(line, panelX + panelWidth / 2, y);
-    context.fillText(line, panelX + panelWidth / 2, y);
+    drawStylizedTelop(context, line, layout, panelX + panelWidth / 2, y, palette);
   });
-  context.restore();
 }
 
 async function createTextOnlyThumbnail() {
