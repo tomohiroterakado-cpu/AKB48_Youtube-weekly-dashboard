@@ -415,6 +415,17 @@ function activeTelopSafeArea() {
   return thumbnailState.production?.images2Brief?.telopSafeArea || thumbnailState.review?.protection?.telopSafeArea || null;
 }
 
+function drawRoundedRect(context, x, y, width, height, radius) {
+  const safeRadius = Math.max(0, Math.min(radius, width / 2, height / 2));
+  context.beginPath();
+  context.moveTo(x + safeRadius, y);
+  context.arcTo(x + width, y, x + width, y + height, safeRadius);
+  context.arcTo(x + width, y + height, x, y + height, safeRadius);
+  context.arcTo(x, y + height, x, y, safeRadius);
+  context.arcTo(x, y, x + width, y, safeRadius);
+  context.closePath();
+}
+
 function requestedThumbnailCopy() {
   return thumbnailState.review?.source?.requestedCopy || document.getElementById("thumbnailCopy").value.trim();
 }

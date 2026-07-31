@@ -31,6 +31,7 @@ test("thumbnail route exposes the complete Images2.0 production workflow", () =>
   assert.match(thumbnail, /createTextOnlyThumbnail/);
   assert.match(thumbnail, /drawExactTelopInSafeArea/);
   assert.match(thumbnail, /activeTelopSafeArea/);
+  assert.match(thumbnail, /function drawRoundedRect\(context, x, y, width, height, radius\)/);
   assert.match(thumbnail, /指定テロップは保護領域の外に確保した安全領域へ正確に配置します/);
 });
 
