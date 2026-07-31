@@ -4,6 +4,9 @@ const thumbnailState = {
   reviewToken: "",
   production: null,
   selectedCandidateId: "",
+  previewMode: "selected-two",
+  previewCandidateIds: [],
+  previewImages: {},
   protectedRegions: [],
   drawingShape: "ellipse",
   generatedImageDataUrl: "",
@@ -122,6 +125,9 @@ function resetThumbnailResult() {
   thumbnailState.reviewToken = "";
   thumbnailState.production = null;
   thumbnailState.selectedCandidateId = "";
+  thumbnailState.previewMode = "selected-two";
+  thumbnailState.previewCandidateIds = [];
+  thumbnailState.previewImages = {};
   thumbnailState.generatedImageDataUrl = "";
   thumbnailState.finalImageDataUrl = "";
   document.getElementById("thumbnailCandidateRail").replaceChildren();
@@ -131,6 +137,7 @@ function resetThumbnailResult() {
   );
   document.getElementById("thumbnailGenerate").disabled = true;
   document.getElementById("thumbnailDownload").disabled = true;
+  document.getElementById("thumbnailPreviewControls").hidden = true;
 }
 
 async function readThumbnailFile() {
@@ -161,14 +168,92 @@ function renderThumbnailCandidates() {
   const rail = document.getElementById("thumbnailCandidateRail");
   rail.replaceChildren();
   (thumbnailState.review?.candidates || []).forEach((candidate) => {
-    const card = thumbnailEl("article", `thumbnailCandidate ${thumbnailState.selectedCandidateId === candidate.id ? "selected" : ""}`.trim());
+    const isCompareSelected = thumbnailState.previewMode === "selected-two" && thumbnailState.previewCandidateIds.includes(candidate.id);
+    const isSelected = thumbnailState.selectedCandidateId === candidate.id;
+    const card = thumbnailEl("article", `thumbnailCandidate ${isSelected ? "selected" : ""} ${isCompareSelected ? "compareSelected" : ""}`.trim());
     card.append(thumbnailEl("strong", "thumbnailCandidateId", candidate.id), thumbnailEl("h3", "", candidate.name), thumbnailEl("p", "", candidate.purpose), thumbnailEl("p", "meta", candidate.recommendedCopy));
-    const choose = thumbnailEl("button", thumbnailState.selectedCandidateId === candidate.id ? "primaryButton" : "secondaryButton", thumbnailState.selectedCandidateId === candidate.id ? "選択中" : "この案を選ぶ");
-    choose.type = "button";
-    choose.addEventListener("click", () => selectThumbnailCandidate(candidate.id));
-    card.appendChild(choose);
+    if (thumbnailState.previewMode === "selected-two") {
+      const compareLabel = thumbnailEl("label", "thumbnailCandidateCompare");
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = isCompareSelected;
+      checkbox.disabled = Boolean(thumbnailState.previewImages[candidate.id]);
+      checkbox.addEventListener("change", () => togglePreviewCandidate(candidate.id, checkbox.checked));
+      compareLabel.append(checkbox, document.createTextNode("この案を比較する"));
+      card.appendChild(compareLabel);
+    }
+    if (thumbnailState.previewImages[candidate.id]) {
+      const preview = document.createElement("img");
+      preview.className = "thumbnailCandidatePreview";
+      preview.src = thumbnailState.previewImages[candidate.id];
+      preview.alt = `${candidate.name}の低画質プレビュー`;
+      card.append(preview, thumbnailEl("p", "thumbnailCandidatePreviewNote", "比較用の低画質プレビュー"));
+      const choose = thumbnailEl("button", isSelected ? "primaryButton" : "secondaryButton", isSelected ? "本生成する案" : "この案を本生成に選ぶ");
+      choose.type = "button";
+      choose.addEventListener("click", () => selectThumbnailCandidate(candidate.id));
+      card.appendChild(choose);
+    }
     rail.appendChild(card);
   });
+  renderThumbnailPreviewControls();
+}
+
+function renderThumbnailPreviewControls() {
+  const controls = document.getElementById("thumbnailPreviewControls");
+  const selection = document.getElementById("thumbnailPreviewSelection");
+  const generate = document.getElementById("thumbnailGeneratePreviews");
+  const modeInputs = [...document.querySelectorAll("input[name=thumbnailPreviewMode]")];
+  if (!thumbnailState.review) {
+    controls.hidden = true;
+    return;
+  }
+  controls.hidden = false;
+  const hasPreviews = Object.keys(thumbnailState.previewImages).length > 0;
+  modeInputs.forEach((input) => {
+    input.checked = input.value === thumbnailState.previewMode;
+    input.disabled = hasPreviews;
+  });
+  if (thumbnailState.previewMode === "all-six") {
+    const candidateCount = thumbnailState.review.candidates.length;
+    selection.textContent = `6案すべてを低画質で比較します（${candidateCount} / ${candidateCount}）。出力回数は2案比較の3倍です。本生成は選んだ1案だけです。`;
+    generate.textContent = "6案すべてを低画質で比較する";
+    generate.disabled = hasPreviews;
+    return;
+  }
+  const selectedCount = thumbnailState.previewCandidateIds.length;
+  selection.textContent = `比較する候補を2案選んでください（${selectedCount} / 2）。低画質プレビュー2枚の後、1案だけを高画質で本生成します。`;
+  generate.textContent = "選んだ2案を低画質で比較する";
+  generate.disabled = selectedCount !== 2 || hasPreviews;
+}
+
+function togglePreviewCandidate(candidateId, checked) {
+  if (thumbnailState.previewMode !== "selected-two") return;
+  const selected = thumbnailState.previewCandidateIds;
+  if (checked) {
+    if (selected.length >= 2) {
+      document.getElementById("thumbnailStatus").className = "warningItem";
+      document.getElementById("thumbnailStatus").textContent = "比較できるのは2案までです。別の候補のチェックを外してから選んでください。";
+      renderThumbnailCandidates();
+      return;
+    }
+    selected.push(candidateId);
+  } else {
+    thumbnailState.previewCandidateIds = selected.filter((id) => id !== candidateId);
+  }
+  renderThumbnailCandidates();
+}
+
+function setThumbnailPreviewMode(mode) {
+  const nextMode = mode === "all-six" ? "all-six" : "selected-two";
+  if (Object.keys(thumbnailState.previewImages).length) {
+    document.getElementById("thumbnailStatus").className = "warningItem";
+    document.getElementById("thumbnailStatus").textContent = "プレビューを作成済みのため、比較方法は変更できません。別の方法で比較する場合は、もう一度6案を設計してください。";
+    renderThumbnailPreviewControls();
+    return;
+  }
+  thumbnailState.previewMode = nextMode;
+  thumbnailState.previewCandidateIds = [];
+  renderThumbnailCandidates();
 }
 
 async function createThumbnailReview() {
@@ -190,11 +275,55 @@ async function createThumbnailReview() {
     thumbnailState.review = review;
     thumbnailState.reviewToken = review.reviewToken;
     thumbnailState.selectedCandidateId = "";
-    result.textContent = "6案を用意しました。1案を選ぶと、選択案だけをImages2.0で生成します。";
+    thumbnailState.previewMode = "selected-two";
+    thumbnailState.previewCandidateIds = [];
+    thumbnailState.previewImages = {};
+    result.textContent = "6案を用意しました。コスト優先では比較したい2案、比較優先では6案すべてを低画質で生成できます。";
     renderThumbnailCandidates();
   } catch (error) {
     result.className = "errorItem";
     result.textContent = error.message;
+  }
+}
+
+async function generateThumbnailPreviews() {
+  const allCandidateIds = (thumbnailState.review?.candidates || []).map((candidate) => candidate.id);
+  const candidateIds = thumbnailState.previewMode === "all-six" ? allCandidateIds : thumbnailState.previewCandidateIds;
+  if (!requireAdmin() || !thumbnailState.review || (thumbnailState.previewMode === "selected-two" && candidateIds.length !== 2)) return;
+  const result = document.getElementById("thumbnailStatus");
+  const generate = document.getElementById("thumbnailGeneratePreviews");
+  try {
+    generate.disabled = true;
+    result.className = "infoItem";
+    result.textContent = `候補 ${candidateIds.join("・")} を低画質で比較生成しています。ここでは本生成品質は使いません。`;
+    const payload = await api("/api/thumbnails/previews", {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        originalImage: thumbnailState.imageDataUrl,
+        reviewToken: thumbnailState.reviewToken,
+        mode: thumbnailState.previewMode,
+        candidateIds,
+        outputSize: thumbnailState.sourceSize
+      })
+    });
+    for (const preview of payload.previews || []) {
+      thumbnailState.previewImages[preview.candidateId] = await compositeProtectedRegions(preview.imageDataUrl);
+    }
+    thumbnailState.previewCandidateIds = candidateIds;
+    renderThumbnailCandidates();
+    const errors = payload.errors || [];
+    result.className = errors.length ? "warningItem" : "infoItem";
+    result.textContent = errors.length
+      ? `${Object.keys(thumbnailState.previewImages).length}案の低画質プレビューを表示しました。${errors.map((item) => `${item.candidateId}: ${item.message}`).join(" ")}`
+      : `低画質プレビューを${payload.requestedCount || candidateIds.length}案表示しました。見比べてから、1案だけを本生成に選んでください。`;
+  } catch (error) {
+    if (/safety system|safety_violation|safety violations/i.test(error.message)) renderThumbnailSafetyFallbackOption(error.message);
+    else {
+      result.className = "errorItem";
+      result.textContent = error.message;
+    }
+    renderThumbnailCandidates();
   }
 }
 
@@ -210,45 +339,12 @@ async function selectThumbnailCandidate(candidateId) {
     thumbnailState.selectedCandidateId = candidateId;
     document.getElementById("thumbnailGenerate").disabled = false;
     result.className = "infoItem";
-    result.textContent = `${production.selectedCandidate.name}を選択しました。指定した保護範囲は生成後に境界をなじませて元画像から前面復帰します。`;
+    result.textContent = `${production.selectedCandidate.name}を選択しました。指定した保護範囲の内部は、生成後も元画像のピクセルをそのまま維持します。`;
     renderThumbnailCandidates();
   } catch (error) {
     result.className = "errorItem";
     result.textContent = error.message;
   }
-}
-
-function drawRoundedRect(context, x, y, width, height, radius) {
-  const safeRadius = Math.min(radius, width / 2, height / 2);
-  context.beginPath();
-  context.moveTo(x + safeRadius, y);
-  context.arcTo(x + width, y, x + width, y + height, safeRadius);
-  context.arcTo(x + width, y + height, x, y + height, safeRadius);
-  context.arcTo(x, y + height, x, y, safeRadius);
-  context.arcTo(x, y, x + width, y, safeRadius);
-  context.closePath();
-}
-
-function createProtectionMask(width, height, shape) {
-  const mask = document.createElement("canvas");
-  mask.width = width;
-  mask.height = height;
-  const context = mask.getContext("2d");
-  const feather = Math.max(3, Math.min(18, Math.round(Math.min(width, height) * 0.055)));
-  const inset = feather * 1.5;
-  context.save();
-  context.fillStyle = "white";
-  context.filter = `blur(${feather}px)`;
-  if (shape === "ellipse") {
-    context.beginPath();
-    context.ellipse(width / 2, height / 2, Math.max(1, width / 2 - inset), Math.max(1, height / 2 - inset), 0, 0, Math.PI * 2);
-    context.fill();
-  } else {
-    drawRoundedRect(context, inset, inset, Math.max(1, width - inset * 2), Math.max(1, height - inset * 2), Math.min(18, Math.max(4, Math.min(width, height) * 0.12)));
-    context.fill();
-  }
-  context.restore();
-  return mask;
 }
 
 function compositeProtectedRegion(context, original, region, canvas) {
@@ -257,14 +353,20 @@ function compositeProtectedRegion(context, original, region, canvas) {
   const w = Math.round(region.w * canvas.width);
   const h = Math.round(region.h * canvas.height);
   if (w < 2 || h < 2) return;
-  const patch = document.createElement("canvas");
-  patch.width = w;
-  patch.height = h;
-  const patchContext = patch.getContext("2d");
-  patchContext.drawImage(original, region.x * original.naturalWidth, region.y * original.naturalHeight, region.w * original.naturalWidth, region.h * original.naturalHeight, 0, 0, w, h);
-  patchContext.globalCompositeOperation = "destination-in";
-  patchContext.drawImage(createProtectionMask(w, h, region.shape), 0, 0);
-  context.drawImage(patch, x, y);
+  const sourceX = Math.round(region.x * original.naturalWidth);
+  const sourceY = Math.round(region.y * original.naturalHeight);
+  const sourceW = Math.round(region.w * original.naturalWidth);
+  const sourceH = Math.round(region.h * original.naturalHeight);
+
+  // Do not feather or inset the user-selected region: every selected pixel stays original.
+  context.save();
+  if (region.shape === "ellipse") {
+    context.beginPath();
+    context.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+    context.clip();
+  }
+  context.drawImage(original, sourceX, sourceY, sourceW, sourceH, x, y, w, h);
+  context.restore();
 }
 
 async function compositeProtectedRegions(generatedImageDataUrl) {
@@ -392,7 +494,7 @@ async function generateThumbnail() {
   try {
     generate.disabled = true;
     result.className = "infoItem";
-    result.textContent = "選択案をImages2.0で高品質化しています。指定した保護範囲は直後に元画像へ戻します...";
+    result.textContent = "選択案をImages2.0で高品質化しています。指定した保護範囲の内部は元画像のまま完全に復元します...";
     const generated = await api("/api/thumbnails/generate", {
       method: "POST",
       headers: adminHeaders(),
@@ -500,6 +602,10 @@ function loadThumbnailWorkspace() {
   setThumbnailDrawingShape(thumbnailState.drawingShape);
   document.getElementById("thumbnailOriginalFile").onchange = () => readThumbnailFile().catch((error) => { document.getElementById("thumbnailStatus").className = "errorItem"; document.getElementById("thumbnailStatus").textContent = error.message; });
   document.getElementById("thumbnailReview").onclick = createThumbnailReview;
+  document.getElementById("thumbnailGeneratePreviews").onclick = generateThumbnailPreviews;
+  document.querySelectorAll("input[name=thumbnailPreviewMode]").forEach((input) => {
+    input.onchange = () => setThumbnailPreviewMode(input.value);
+  });
   document.getElementById("thumbnailGenerate").onclick = generateThumbnail;
   document.getElementById("thumbnailDownload").onclick = downloadThumbnail;
   renderThumbnailRegions();

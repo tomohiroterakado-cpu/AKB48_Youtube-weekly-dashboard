@@ -11,9 +11,10 @@ const { buildReportWithLegacyGoals } = require("./lib/legacy-goals");
 const { approveMarketReport, attachMarketReports, marketReportFromEmail, upsertMarketReport } = require("./lib/market-report");
 const { syncLegacyWeeklyReport } = require("./lib/legacy-sheet-sync");
 const { confirmVideos, reclassifyUnconfirmedVideos, updateVideoAttributes } = require("./lib/review-service");
-const { createThumbnailReview, selectThumbnailCandidate, assessThumbnailQuality } = require("./lib/thumbnail-workflow");
+const { createThumbnailReview, selectThumbnailCandidate, selectThumbnailPreviewCandidates, selectAllThumbnailPreviewCandidates, assessThumbnailQuality } = require("./lib/thumbnail-workflow");
 const { generateImages2Design } = require("./lib/images2-client");
 const { ThumbnailGenerationGuard, completePersistentGeneration, generationFingerprint, releasePersistentGeneration, reservePersistentGeneration, signThumbnailReview, verifyThumbnailReview } = require("./lib/thumbnail-session");
+const { generatePrepublishReview, learningRecord, recordOutcome } = require("./lib/prepublish-review");
 
 const root = __dirname;
 const port = Number(process.env.PORT || 8080);
@@ -24,6 +25,51 @@ const repository = dataBackend === "sheets"
   ? new GoogleSheetsRepository({ spreadsheetId: process.env.GOOGLE_SPREADSHEET_ID, accessToken: process.env.GOOGLE_ACCESS_TOKEN })
   : new JsonRepository(process.env.DATA_FILE || path.join(root, ".data", "director.json"));
 const thumbnailGenerationGuard = new ThumbnailGenerationGuard();
+
+function previewOutputSize(outputSize) {
+  const width = Number(outputSize?.width);
+  const height = Number(outputSize?.height);
+  const sourceAspect = Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0
+    ? width / height
+    : 16 / 9;
+  const aspect = Math.min(3, Math.max(1 / 3, sourceAspect));
+  const grid = 16;
+  const minimumPixels = 655360;
+  let longEdge = 1088;
+
+  while (longEdge <= 3840) {
+    const normalizedWidth = aspect >= 1
+      ? Math.round(longEdge / grid) * grid
+      : Math.round((longEdge * aspect) / grid) * grid;
+    const normalizedHeight = aspect >= 1
+      ? Math.round((longEdge / aspect) / grid) * grid
+      : Math.round(longEdge / grid) * grid;
+    if (normalizedWidth * normalizedHeight >= minimumPixels) {
+      return { width: normalizedWidth, height: normalizedHeight };
+    }
+    longEdge += grid;
+  }
+
+  return { width: 1088, height: 608 };
+}
+
+async function generateThumbnailPreview({ review, candidateId, originalImage, outputSize }) {
+  const production = selectThumbnailCandidate(review, candidateId);
+  const fingerprint = generationFingerprint({ review, candidateId, originalImage, variant: "low-preview" });
+  thumbnailGenerationGuard.reserve(fingerprint);
+  try {
+    const generated = await generateImages2Design({
+      originalImage,
+      production,
+      outputSize: previewOutputSize(outputSize),
+      quality: "low"
+    });
+    return { candidateId, candidate: production.selectedCandidate, ...generated };
+  } finally {
+    // Preview images live only in the active browser. Do not spend a 24-hour final-generation lock on them.
+    thumbnailGenerationGuard.release(fingerprint);
+  }
+}
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -209,6 +255,22 @@ async function handleApi(req, res, pathname) {
     });
     return json(res, 201, result);
   }
+  if (req.method === "POST" && pathname === "/api/prepublish-reviews/generate") {
+    authorizeWrite(req);
+    const review = await generatePrepublishReview(await readJson(req));
+    await repository.mutate((state) => {
+      state.prepublishReviews ||= [];
+      state.prepublishReviews.push(learningRecord(review));
+      return { status: "created", reviewId: review.reviewId };
+    });
+    return json(res, 200, review);
+  }
+  if (req.method === "POST" && pathname === "/api/prepublish-reviews/outcome") {
+    authorizeWrite(req);
+    const body = await readJson(req);
+    const result = await repository.mutate((state) => recordOutcome(state, body));
+    return json(res, 200, result);
+  }
   if (req.method === "POST" && pathname === "/api/thumbnails/review") {
     authorizeWrite(req);
     const review = createThumbnailReview(await readJson(req));
@@ -218,6 +280,45 @@ async function handleApi(req, res, pathname) {
     authorizeWrite(req);
     const body = await readJson(req);
     return json(res, 200, selectThumbnailCandidate(verifyThumbnailReview(body.reviewToken, adminToken), body.candidateId));
+  }
+  if (req.method === "POST" && pathname === "/api/thumbnails/previews") {
+    authorizeWrite(req);
+    const body = await readJson(req);
+    const review = verifyThumbnailReview(body.reviewToken, adminToken);
+    const previewMode = body.mode || "selected-two";
+    if (!["selected-two", "all-six"].includes(previewMode)) {
+      throw Object.assign(new Error("プレビュー方法が不正です。"), { status: 400 });
+    }
+    const selections = previewMode === "all-six"
+      ? selectAllThumbnailPreviewCandidates(review)
+      : selectThumbnailPreviewCandidates(review, body.candidateIds);
+    const candidateIds = selections.map((selection) => selection.selectedCandidate.id);
+    const results = await Promise.allSettled(candidateIds.map((candidateId) => generateThumbnailPreview({
+      review,
+      candidateId,
+      originalImage: body.originalImage,
+      outputSize: body.outputSize
+    })));
+    const previews = results.filter((result) => result.status === "fulfilled").map((result) => result.value);
+    const errors = results.flatMap((result, index) => result.status === "rejected"
+      ? [{
+          candidateId: candidateIds[index],
+          message: result.reason?.message || "低画質プレビューの生成に失敗しました。",
+          status: result.reason?.status || 502
+        }]
+      : []);
+    if (!previews.length) {
+      const error = Object.assign(new Error(errors.map((item) => `${item.candidateId}: ${item.message}`).join("\n")), { status: errors[0]?.status || 502 });
+      throw error;
+    }
+    return json(res, 200, {
+      previews,
+      errors,
+      previewMode,
+      requestedCount: candidateIds.length,
+      previewQuality: "low",
+      note: "比較用の低画質プレビューです。本生成は選択した1案だけ高画質で実行します。"
+    });
   }
   if (req.method === "POST" && pathname === "/api/thumbnails/regenerate") {
     authorizeWrite(req);

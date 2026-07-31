@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { createThumbnailReview, selectThumbnailCandidate, assessThumbnailQuality } = require("../lib/thumbnail-workflow");
+const { createThumbnailReview, selectThumbnailCandidate, selectThumbnailPreviewCandidates, selectAllThumbnailPreviewCandidates, assessThumbnailQuality } = require("../lib/thumbnail-workflow");
 const { MAX_SOURCE_IMAGE_BYTES, dataUrlToBlob, buildImageEditPrompt, generateImages2Design, normalizedOutputSize } = require("../lib/images2-client");
 
 const input = {
@@ -30,6 +30,18 @@ test("選択案だけをImages2.0制作ブリーフへ変換する", () => {
   assert.equal(selected.status, "ready_for_generation");
   assert.equal(selected.selectedCandidate.name, "坂道チャンネル参考型");
   assert.equal(selected.roles.originalComposite, "顔・ロゴ保護担当");
+});
+
+test("低画質プレビュー用には重複なしで任意の2案だけを選べる", () => {
+  const review = createThumbnailReview(input);
+  assert.throws(() => selectThumbnailPreviewCandidates(review, ["A"]), /2案/);
+  assert.throws(() => selectThumbnailPreviewCandidates(review, ["A", "A"]), /重複なし/);
+  assert.deepEqual(selectThumbnailPreviewCandidates(review, ["B", "E"]).map((item) => item.selectedCandidate.id), ["B", "E"]);
+});
+
+test("比較優先では設計済みの6案すべてをプレビュー用に選べる", () => {
+  const review = createThumbnailReview(input);
+  assert.deepEqual(selectAllThumbnailPreviewCandidates(review).map((item) => item.selectedCandidate.id), ["A", "B", "C", "D", "E", "F"]);
 });
 
 test("顔・日本語・顔被りに問題があれば完成を止める", () => {
@@ -79,6 +91,26 @@ test("選択案だけを画像編集APIへ渡し、Base64のPNGを返す", async
   assert.equal(request.options.body.get("model"), "gpt-image-2");
   assert.ok(request.options.body.get("image[]"));
   assert.equal(request.options.body.get("size"), "1280x720");
+  assert.equal(request.options.body.get("quality"), "high");
   assert.equal(output.outputSize, "1280x720");
   assert.equal(output.imageDataUrl, "data:image/png;base64,ZmFrZQ==");
+});
+
+test("比較プレビューはlow品質を指定できる", async () => {
+  const production = selectThumbnailCandidate(createThumbnailReview(input), "B");
+  let request;
+  const output = await generateImages2Design({
+    originalImage: "data:image/png;base64,iVBORw0KGgo=",
+    production,
+    outputSize: { width: 1024, height: 576 },
+    quality: "low",
+    apiKey: "test-key",
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return { ok: true, json: async () => ({ data: [{ b64_json: "ZmFrZQ==" }] }) };
+    }
+  });
+  assert.equal(request.options.body.get("size"), "1024x576");
+  assert.equal(request.options.body.get("quality"), "low");
+  assert.equal(output.quality, "low");
 });

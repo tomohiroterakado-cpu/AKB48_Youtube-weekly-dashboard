@@ -55,11 +55,17 @@ function showRoute(route) {
   const resolved = document.querySelector(`[data-director-view="${route}"]`) ? route : "home";
   document.querySelectorAll("[data-director-view]").forEach((view) => { view.hidden = view.dataset.directorView !== resolved; });
   document.querySelectorAll("[data-route]").forEach((button) => button.classList.toggle("active", button.dataset.route === resolved));
+  const activeNavigation = document.querySelector(`.directorNav [data-route="${resolved}"]`);
+  const navigation = activeNavigation?.closest(".directorNav");
+  if (navigation && navigation.scrollWidth > navigation.clientWidth) {
+    navigation.scrollLeft = Math.max(0, activeNavigation.offsetLeft - (navigation.clientWidth - activeNavigation.offsetWidth) / 2);
+  }
   if (location.hash !== `#${resolved}`) history.replaceState(null, "", `#${resolved}`);
   if (resolved === "home") loadHome();
   if (resolved === "review") loadReviews();
   if (resolved === "masters") loadMasters();
   if (resolved === "director") loadDirectorReport();
+  if (resolved === "prepublish" && window.loadPrepublishWorkspace) window.loadPrepublishWorkspace();
   if (resolved === "thumbnail" && window.loadThumbnailWorkspace) window.loadThumbnailWorkspace();
 }
 

@@ -20,6 +20,7 @@
         <button type="button" data-route="review">未確認動画 <span id="reviewBadge" class="navBadge" hidden></span></button>
         <button type="button" data-route="weekly">週次レポート</button>
         <button type="button" data-route="director">AI Director</button>
+        <button type="button" data-route="prepublish">公開前レビュー</button>
         <button type="button" data-route="thumbnail">サムネイル制作</button>
         <button type="button" data-route="masters">マスタ管理</button>
       </nav>
@@ -125,9 +126,160 @@
       <section id="directorReport" class="directorPanel" aria-live="polite"></section>
     </main>
 
+    <main id="prepublishView" class="directorPage prepublishPage" data-director-view="prepublish" hidden>
+      <div class="directorPageHeader prepublishPageHeader">
+        <div>
+          <p class="eyebrow">公開前パッケージ</p>
+          <h1>公開前レビュー</h1>
+          <p class="meta">タイトル・サムネ・概要欄・X告知を、公開前にひとつのパッケージで確認します。</p>
+        </div>
+        <div class="prepublishHeaderActions">
+          <span id="prepublishDraftStatus" class="draftStatus" aria-live="polite">入力すると自動で一時保存します</span>
+          <button id="prepublishGenerateTop" class="primaryButton prepublishGenerateButton" type="button">30案を生成してレビュー</button>
+        </div>
+      </div>
+
+      <form id="prepublishForm" class="directorPanel prepublishInputPanel">
+        <div class="prepublishInputGrid">
+          <section class="prepublishThumbnailField" aria-labelledby="prepublishThumbnailLabel">
+            <span id="prepublishThumbnailLabel" class="fieldLabel">サムネイル画像</span>
+            <label class="prepublishThumbnailDrop" for="prepublishThumbnailFile">
+              <input id="prepublishThumbnailFile" type="file" accept="image/png,image/jpeg,image/webp">
+              <img id="prepublishThumbnailPreview" alt="公開前レビュー用サムネイルのプレビュー" hidden>
+              <span id="prepublishThumbnailEmpty">
+                <strong>サムネイルを選択</strong>
+                <small>JPEG / PNG / WebP、8MB以下</small>
+              </span>
+            </label>
+            <div class="thumbnailFileActions">
+              <button id="prepublishThumbnailChange" class="secondaryButton compactButton" type="button">画像を選択／変更</button>
+              <span id="prepublishThumbnailMeta" class="meta">推奨 16:9 / 1280×720px以上</span>
+            </div>
+          </section>
+
+          <section class="prepublishFields">
+            <label class="prepublishField prepublishFieldWide">
+              <span>動画内容</span>
+              <textarea id="prepublishVideoContent" required placeholder="企画の流れ、ルール、結末まで具体的に入力"></textarea>
+            </label>
+            <label class="prepublishField">
+              <span>出演者</span>
+              <input id="prepublishCast" required placeholder="例：小栗有以、倉野尾成美">
+            </label>
+            <label class="prepublishField">
+              <span>見どころ</span>
+              <textarea id="prepublishHighlights" required placeholder="表情、事件、意外な展開、関係性など"></textarea>
+            </label>
+            <label class="prepublishField">
+              <span>対象チャンネル</span>
+              <select id="prepublishChannel">
+                <option>AKBの素を出すちゃんねる</option>
+                <option>AKB48の全力エンタメ学園</option>
+              </select>
+            </label>
+            <label class="prepublishField">
+              <span>シリーズ名</span>
+              <input id="prepublishSeriesName" required placeholder="例：AKB48の全力エンタメ学園">
+            </label>
+            <label class="prepublishField">
+              <span>回数</span>
+              <input id="prepublishEpisode" placeholder="例：第3回">
+            </label>
+            <label class="prepublishField">
+              <span>想定ターゲット</span>
+              <input id="prepublishTargetAudience" required placeholder="AKBファン、ライト層、女性、おすすめ新規など">
+            </label>
+            <label class="prepublishField prepublishFieldWide">
+              <span>現在のタイトル案（任意）</span>
+              <input id="prepublishCurrentTitle" placeholder="すでに案があれば入力">
+            </label>
+          </section>
+        </div>
+        <div class="prepublishFormFooter">
+          <p class="meta">AIの長い内部議論は表示せず、採用判断に必要な結論と理由だけを表示します。</p>
+          <button id="prepublishGenerate" class="primaryButton prepublishGenerateButton" type="submit">30案を生成して公開前レビュー</button>
+        </div>
+      </form>
+
+      <section id="prepublishProgress" class="directorPanel prepublishProgress" hidden aria-live="polite">
+        <span class="prepublishSpinner" aria-hidden="true"></span>
+        <div>
+          <strong>サムネと企画を一括レビューしています</strong>
+          <p class="meta">30案の生成 → 6視点評価 → 上位5案の再設計 → ABテスト作成の順に進めます。</p>
+        </div>
+      </section>
+
+      <section id="prepublishError" class="errorItem" hidden aria-live="polite"></section>
+
+      <section id="prepublishResults" class="prepublishResults" hidden aria-live="polite">
+        <div class="prepublishDecisionGrid">
+          <article class="prepublishWinner">
+            <span class="winnerLabel">優勝</span>
+            <h2 id="prepublishWinnerTitle"></h2>
+            <div class="winnerMetrics">
+              <div><span>評価点</span><strong id="prepublishWinnerScore"></strong></div>
+              <div><span>CTR予想</span><strong id="prepublishWinnerCtr"></strong></div>
+              <div><span>ターゲット</span><strong id="prepublishWinnerTarget"></strong></div>
+            </div>
+            <p id="prepublishWinnerReason" class="winnerReason"></p>
+          </article>
+
+          <article class="directorPanel prepublishAbPanel">
+            <div class="panelHeader"><div><span class="sectionLabel">比較検証</span><h2>ABテスト</h2></div></div>
+            <div id="prepublishAbTests" class="abTestList"></div>
+          </article>
+        </div>
+
+        <section class="directorPanel thumbnailFitPanel">
+          <div class="panelHeader">
+            <div><span class="sectionLabel">役割分担</span><h2>サムネイルとの相性・情報重複</h2></div>
+            <strong id="prepublishThumbnailFitScore" class="fitScore"></strong>
+          </div>
+          <div class="thumbnailFitGrid">
+            <div><span>重複判定</span><strong id="prepublishOverlapLevel"></strong></div>
+            <div><span>相乗効果</span><p id="prepublishSynergy"></p></div>
+            <div><span>改善案</span><p id="prepublishThumbnailImprovement"></p></div>
+          </div>
+          <div id="prepublishDuplicateElements" class="duplicateElements"></div>
+        </section>
+
+        <div class="prepublishCopyGrid">
+          <section class="directorPanel copyPanel">
+            <div class="panelHeader"><div><span class="sectionLabel">公開文面</span><h2>YouTube概要欄</h2></div><button class="secondaryButton compactButton" type="button" data-copy-target="prepublishDescription">コピー</button></div>
+            <pre id="prepublishDescription"></pre>
+          </section>
+          <section class="directorPanel copyPanel">
+            <div class="panelHeader"><div><span class="sectionLabel">SNS告知</span><h2>X告知文</h2></div><button class="secondaryButton compactButton" type="button" data-copy-target="prepublishXPost">コピー</button></div>
+            <pre id="prepublishXPost"></pre>
+          </section>
+        </div>
+
+        <section class="directorPanel topFivePanel">
+          <div class="panelHeader"><div><span class="sectionLabel">再設計</span><h2>上位5案のブラッシュアップ</h2></div></div>
+          <div id="prepublishTopFive" class="topFiveList"></div>
+        </section>
+
+        <section class="directorPanel titleCandidatesPanel">
+          <div class="panelHeader">
+            <div><span class="sectionLabel">全案評価</span><h2>タイトル候補30案</h2><p class="meta">95点以上だけを採用候補として表示します。各行を開くと6視点の結論を確認できます。</p></div>
+            <span id="prepublishEligibleCount" class="eligibleCount"></span>
+          </div>
+          <div class="candidateTableHeader" aria-hidden="true">
+            <span>順位</span><span>タイトル案</span><span>評価</span><span>CTR予想</span>
+          </div>
+          <div id="prepublishCandidates" class="candidateList"></div>
+        </section>
+
+        <section class="directorPanel improvementPanel">
+          <div class="panelHeader"><div><span class="sectionLabel">公開前チェック</span><h2>公開前の改善ポイント</h2></div></div>
+          <ol id="prepublishImprovements" class="prepublishImprovementList"></ol>
+        </section>
+      </section>
+    </main>
+
     <main id="thumbnailView" class="directorPage" data-director-view="thumbnail" hidden>
       <div class="directorPageHeader">
-        <div><p class="eyebrow">HIGH QUALITY MODE</p><h1>サムネイル制作</h1><p class="meta">元画像を守りながら、6案の比較からImages2.0の高品質テロップへ進みます。</p></div>
+        <div><p class="eyebrow">HIGH QUALITY MODE</p><h1>サムネイル制作</h1><p class="meta">コスト優先なら2案、比較優先なら6案を低画質で確認し、選んだ1案だけをImages2.0で高品質生成します。</p></div>
       </div>
       <section class="thumbnailWorkspace">
         <section class="directorPanel thumbnailSourcePanel">
@@ -143,7 +295,7 @@
           <p id="thumbnailStatus" class="meta" aria-live="polite">元画像を読み込み、指定した顔・ロゴ・変えたくない箇所を保護してから6案を比較します。画像AIが安全判定で使えない場合は、元画像を変えずにテロップだけを合成する代替モードを選べます。</p>
         </section>
         <section class="directorPanel thumbnailPreviewPanel">
-          <div class="panelHeader"><div><span class="sectionLabel">保護領域</span><h2>顔・ロゴをドラッグして囲む</h2><p class="meta">顔は楕円、ロゴや文字は四角で囲みます。生成後は境界をなじませて元画像から前面へ戻します。</p></div></div>
+          <div class="panelHeader"><div><span class="sectionLabel">保護領域</span><h2>顔・ロゴをドラッグして囲む</h2><p class="meta">顔は楕円、ロゴや文字は四角で囲みます。指定した範囲の内部は、生成後も元画像のまま完全に残します。</p></div></div>
           <div class="thumbnailShapePicker" role="group" aria-label="保護領域の形状">
             <span>選択形状</span>
             <button type="button" class="thumbnailShapeButton active" data-thumbnail-shape="ellipse" aria-pressed="true">楕円</button>
@@ -155,12 +307,20 @@
         <aside class="directorPanel thumbnailQualityPanel">
           <div class="panelHeader"><div><span class="sectionLabel">品質ゲート</span><h2>公開前の最終確認</h2></div></div>
           <div id="thumbnailQualityList" class="thumbnailQualityList"><p class="meta">生成後に確認項目が表示されます。</p></div>
-          <button id="thumbnailGenerate" class="primaryButton" type="button" disabled>選択案をImages2.0で生成</button>
+          <button id="thumbnailGenerate" class="primaryButton" type="button" disabled>選択案を高画質で本生成</button>
           <button id="thumbnailDownload" class="secondaryButton" type="button" disabled>最終PNGをダウンロード</button>
         </aside>
       </section>
       <section class="directorPanel">
-        <div class="panelHeader"><div><span class="sectionLabel">クリエイティブ案</span><h2>テーマの異なる6案から選ぶ</h2><p class="meta">生成するのは、選択した1案だけです。</p></div></div>
+        <div class="panelHeader"><div><span class="sectionLabel">クリエイティブ案</span><h2>テーマの異なる6案を比較する</h2><p class="meta">コスト優先では任意の2案、比較優先では6案すべてを低画質で生成します。本生成はその後に選ぶ1案だけです。</p></div></div>
+        <div id="thumbnailPreviewControls" class="thumbnailPreviewControls" hidden>
+          <div id="thumbnailPreviewModePicker" class="thumbnailPreviewModePicker" role="radiogroup" aria-label="低画質プレビューの比較方法">
+            <label><input type="radio" name="thumbnailPreviewMode" value="selected-two" checked>コスト優先：2案だけ低画質プレビュー</label>
+            <label><input type="radio" name="thumbnailPreviewMode" value="all-six">比較優先：6案すべて低画質プレビュー</label>
+          </div>
+          <p id="thumbnailPreviewSelection" class="meta" aria-live="polite">比較する候補を2案選んでください（0 / 2）</p>
+          <button id="thumbnailGeneratePreviews" class="secondaryButton" type="button" disabled>選んだ2案を低画質で比較する</button>
+        </div>
         <div id="thumbnailCandidateRail" class="thumbnailCandidateRail"></div>
       </section>
       <section class="directorPanel" id="thumbnailFinalPanel">
@@ -295,6 +455,7 @@
     <script src="./data/latest.js"></script>
     <script src="./app.js"></script>
     <script src="./director.js"></script>
-    <script src="./thumbnail.js?v=20260727-restore"></script>
+    <script src="./prepublish.js?v=20260731"></script>
+  <script src="./thumbnail.js?v=20260727-strict-protection"></script>
   </body>
 </html>

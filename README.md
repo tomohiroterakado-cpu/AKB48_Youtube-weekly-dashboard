@@ -56,11 +56,23 @@ node server.js
 | `GOOGLE_SPREADSHEET_ID` | sheets時必須 | 永続化するGoogle Sheets ID |
 | `ADMIN_ACCESS_TOKEN` | 書込時必須 | CSV取込・確認・マスタ編集の保護 |
 | `GOOGLE_ACCESS_TOKEN` | ローカルSheets検証のみ | 本番Cloud Runではメタデータ認証を使用 |
-| `OPENAI_API_KEY` | サムネイル画像生成時のみ | GPT Image 2で選択したサムネイル案を編集生成するAPIキー |
+| `OPENAI_API_KEY` | AI生成時のみ | 公開前レビューとGPT Image 2サムネイル生成に使うAPIキー |
 | `OPENAI_IMAGE_MODEL` | 任意 | 既定は `gpt-image-2`。画像生成モデルを切り替える場合だけ設定 |
+| `OPENAI_TEXT_MODEL` | 任意 | 公開前レビューのテキスト・画像分析モデル。既定は `gpt-5.6` |
 | `DATA_FILE` | 任意 | JSON保存先 |
 
 `ADMIN_ACCESS_TOKEN`、OAuth JSON、APIキーはコードやGitHubに保存しません。
+
+## 公開前レビュー
+
+画面上部の **公開前レビュー** では、サムネイルと企画情報から公開パッケージを一括生成します。入力した内容と画像はこのブラウザのIndexedDBへ一時保存され、サーバーへ送信するのは管理モードで生成ボタンを押したときだけです。
+
+- タイトル30案を、CTR・内容一致・スマホ視認性・感情ワード・新規性・シリーズ感の100点満点で評価
+- YouTubeアルゴリズム、テレビ番組、海外大型企画、グループYouTuber、番組企画、一般視聴者の6視点で結論を表示
+- 上位5案の再設計、ABテスト2案、最終推奨1案を作成
+- サムネイルとの相性と情報重複、YouTube概要欄、X告知文、公開前改善点を同じ画面に表示
+
+生成結果の要約は `AI_prepublish_reviews` に週次CSVとは別に保存します。`reviewId`、採用タイトル、公開動画ID、公開後CTRを結び付けられる列を先に用意しているため、今後は同じレビューIDへ実績を登録して提案精度の改善に利用できます。現時点のCTR予想は過去実績を学習した予測値ではなく、企画情報に基づく幅付きの参考値です。
 
 ## サムネイル制作
 
