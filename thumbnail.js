@@ -4,6 +4,9 @@ const thumbnailState = {
   reviewToken: "",
   production: null,
   selectedCandidateId: "",
+  previewMode: "selected-two",
+  previewCandidateIds: [],
+  previewImages: {},
   protectedRegions: [],
   drawingShape: "ellipse",
   generatedImageDataUrl: "",
@@ -122,9 +125,13 @@ function resetThumbnailResult() {
   thumbnailState.reviewToken = "";
   thumbnailState.production = null;
   thumbnailState.selectedCandidateId = "";
+  thumbnailState.previewMode = "selected-two";
+  thumbnailState.previewCandidateIds = [];
+  thumbnailState.previewImages = {};
   thumbnailState.generatedImageDataUrl = "";
   thumbnailState.finalImageDataUrl = "";
   document.getElementById("thumbnailCandidateRail").replaceChildren();
+  document.getElementById("thumbnailPreviewControls").hidden = true;
   document.getElementById("thumbnailQualityList").replaceChildren();
   document.getElementById("thumbnailFinalPreview").replaceChildren(
     thumbnailEl("p", "emptyState", "生成・合成後の最終サムネイルがここに表示されます。")
@@ -161,14 +168,98 @@ function renderThumbnailCandidates() {
   const rail = document.getElementById("thumbnailCandidateRail");
   rail.replaceChildren();
   (thumbnailState.review?.candidates || []).forEach((candidate) => {
-    const card = thumbnailEl("article", `thumbnailCandidate ${thumbnailState.selectedCandidateId === candidate.id ? "selected" : ""}`.trim());
+    const previewImage = thumbnailState.previewImages[candidate.id];
+    const isCompareSelected = thumbnailState.previewMode === "selected-two" && thumbnailState.previewCandidateIds.includes(candidate.id);
+    const classes = [
+      "thumbnailCandidate",
+      thumbnailState.selectedCandidateId === candidate.id ? "selected" : "",
+      isCompareSelected ? "compareSelected" : ""
+    ].filter(Boolean).join(" ");
+    const card = thumbnailEl("article", classes);
     card.append(thumbnailEl("strong", "thumbnailCandidateId", candidate.id), thumbnailEl("h3", "", candidate.name), thumbnailEl("p", "", candidate.purpose), thumbnailEl("p", "meta", candidate.recommendedCopy));
-    const choose = thumbnailEl("button", thumbnailState.selectedCandidateId === candidate.id ? "primaryButton" : "secondaryButton", thumbnailState.selectedCandidateId === candidate.id ? "選択中" : "この案を選ぶ");
-    choose.type = "button";
-    choose.addEventListener("click", () => selectThumbnailCandidate(candidate.id));
-    card.appendChild(choose);
+    if (thumbnailState.previewMode === "selected-two") {
+      const compare = thumbnailEl("label", "thumbnailCandidateCompare");
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.checked = isCompareSelected;
+      input.disabled = Boolean(previewImage);
+      input.addEventListener("change", () => toggleThumbnailPreviewCandidate(candidate.id, input.checked));
+      compare.append(input, document.createTextNode("この案を比較する"));
+      card.appendChild(compare);
+    }
+    if (previewImage) {
+      const image = document.createElement("img");
+      image.className = "thumbnailCandidatePreview";
+      image.src = previewImage;
+      image.alt = `${candidate.name}の低画質プレビュー`;
+      card.append(image, thumbnailEl("p", "thumbnailCandidatePreviewNote", "比較用の低画質プレビュー"));
+      const choose = thumbnailEl("button", thumbnailState.selectedCandidateId === candidate.id ? "primaryButton" : "secondaryButton", thumbnailState.selectedCandidateId === candidate.id ? "選択中" : "この案を本生成に選ぶ");
+      choose.type = "button";
+      choose.addEventListener("click", () => selectThumbnailCandidate(candidate.id));
+      card.appendChild(choose);
+    }
     rail.appendChild(card);
   });
+  renderThumbnailPreviewControls();
+}
+
+function renderThumbnailPreviewControls() {
+  const controls = document.getElementById("thumbnailPreviewControls");
+  const selection = document.getElementById("thumbnailPreviewSelection");
+  const generate = document.getElementById("thumbnailGeneratePreviews");
+  if (!thumbnailState.review) {
+    controls.hidden = true;
+    return;
+  }
+  controls.hidden = false;
+  const candidates = thumbnailState.review.candidates || [];
+  const hasPreviews = Object.keys(thumbnailState.previewImages).length > 0;
+  document.querySelectorAll("input[name=thumbnailPreviewMode]").forEach((input) => {
+    input.checked = input.value === thumbnailState.previewMode;
+    input.disabled = hasPreviews;
+  });
+  if (thumbnailState.previewMode === "all-six") {
+    selection.textContent = `6案すべてを低画質で比較します（${candidates.length}/${candidates.length}案）。本生成は、この後に選ぶ1案だけです。`;
+    generate.textContent = "6案すべてを低画質で比較する";
+    generate.disabled = hasPreviews;
+  } else {
+    const selectedCount = thumbnailState.previewCandidateIds.length;
+    selection.textContent = `比較する候補を2案選んでください（${selectedCount}/2）。低画質の比較後、1案だけを高画質で本生成します。`;
+    generate.textContent = "選んだ2案を低画質で比較する";
+    generate.disabled = hasPreviews || selectedCount !== 2;
+  }
+}
+
+function toggleThumbnailPreviewCandidate(candidateId, checked) {
+  if (Object.keys(thumbnailState.previewImages).length) return;
+  const selected = new Set(thumbnailState.previewCandidateIds);
+  if (checked) {
+    if (selected.size >= 2) {
+      const status = document.getElementById("thumbnailStatus");
+      status.className = "warningItem";
+      status.textContent = "コスト優先の比較では2案まで選べます。別の候補を外してから選んでください。";
+      renderThumbnailCandidates();
+      return;
+    }
+    selected.add(candidateId);
+  } else {
+    selected.delete(candidateId);
+  }
+  thumbnailState.previewCandidateIds = [...selected];
+  renderThumbnailCandidates();
+}
+
+function setThumbnailPreviewMode(mode) {
+  if (Object.keys(thumbnailState.previewImages).length) {
+    const status = document.getElementById("thumbnailStatus");
+    status.className = "warningItem";
+    status.textContent = "比較プレビュー作成後は比較方式を変更できません。方式を変える場合は、もう一度6案を設計してください。";
+    renderThumbnailPreviewControls();
+    return;
+  }
+  thumbnailState.previewMode = mode === "all-six" ? "all-six" : "selected-two";
+  thumbnailState.previewCandidateIds = [];
+  renderThumbnailCandidates();
 }
 
 async function createThumbnailReview() {
@@ -189,12 +280,61 @@ async function createThumbnailReview() {
     });
     thumbnailState.review = review;
     thumbnailState.reviewToken = review.reviewToken;
+    thumbnailState.production = null;
     thumbnailState.selectedCandidateId = "";
-    result.textContent = "6案を用意しました。1案を選ぶと、選択案だけをImages2.0で生成します。";
+    thumbnailState.previewMode = "selected-two";
+    thumbnailState.previewCandidateIds = [];
+    thumbnailState.previewImages = {};
+    document.getElementById("thumbnailGenerate").disabled = true;
+    result.textContent = "6案を用意しました。低画質で比較してから、選んだ1案だけを高画質で本生成します。";
     renderThumbnailCandidates();
   } catch (error) {
     result.className = "errorItem";
     result.textContent = error.message;
+  }
+}
+
+async function generateThumbnailPreviews() {
+  if (!requireAdmin() || !thumbnailState.review) return;
+  const result = document.getElementById("thumbnailStatus");
+  const generate = document.getElementById("thumbnailGeneratePreviews");
+  const candidateIds = thumbnailState.previewMode === "all-six"
+    ? thumbnailState.review.candidates.map((candidate) => candidate.id)
+    : thumbnailState.previewCandidateIds;
+  if (thumbnailState.previewMode === "selected-two" && candidateIds.length !== 2) {
+    result.className = "warningItem";
+    result.textContent = "低画質で比較する候補を2案選んでください。";
+    return;
+  }
+  try {
+    generate.disabled = true;
+    result.className = "infoItem";
+    result.textContent = `${candidateIds.length}案を低画質で作成しています。最終の高画質生成はまだ実行しません...`;
+    const payload = await api("/api/thumbnails/previews", {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        originalImage: thumbnailState.imageDataUrl,
+        reviewToken: thumbnailState.reviewToken,
+        previewMode: thumbnailState.previewMode,
+        candidateIds,
+        outputSize: thumbnailState.sourceSize
+      })
+    });
+    for (const preview of payload.previews || []) {
+      thumbnailState.previewImages[preview.candidateId] = await compositeProtectedRegions(preview.imageDataUrl);
+    }
+    thumbnailState.previewCandidateIds = candidateIds;
+    renderThumbnailCandidates();
+    const failures = payload.errors || [];
+    result.className = failures.length ? "warningItem" : "infoItem";
+    result.textContent = failures.length
+      ? `${payload.previews.length}案の低画質プレビューを作成しました。${failures.length}案は作成できなかったため、再度6案を設計して比較してください。`
+      : `${payload.previews.length}案の低画質プレビューを作成しました。比較後、1案を選んで高画質で本生成してください。`;
+  } catch (error) {
+    result.className = "errorItem";
+    result.textContent = error.message;
+    renderThumbnailPreviewControls();
   }
 }
 
@@ -500,6 +640,10 @@ function loadThumbnailWorkspace() {
   setThumbnailDrawingShape(thumbnailState.drawingShape);
   document.getElementById("thumbnailOriginalFile").onchange = () => readThumbnailFile().catch((error) => { document.getElementById("thumbnailStatus").className = "errorItem"; document.getElementById("thumbnailStatus").textContent = error.message; });
   document.getElementById("thumbnailReview").onclick = createThumbnailReview;
+  document.querySelectorAll("input[name=thumbnailPreviewMode]").forEach((input) => {
+    input.onchange = () => setThumbnailPreviewMode(input.value);
+  });
+  document.getElementById("thumbnailGeneratePreviews").onclick = generateThumbnailPreviews;
   document.getElementById("thumbnailGenerate").onclick = generateThumbnail;
   document.getElementById("thumbnailDownload").onclick = downloadThumbnail;
   renderThumbnailRegions();

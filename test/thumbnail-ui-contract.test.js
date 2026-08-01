@@ -14,6 +14,7 @@ test("thumbnail route exposes the complete Images2.0 production workflow", () =>
   [
     "data-route=\"thumbnail\"", "data-director-view=\"thumbnail\"", "thumbnailOriginalFile",
     "thumbnailPreviewSurface", "thumbnailReview", "thumbnailCandidateRail", "thumbnailGenerate",
+    "thumbnailPreviewControls", "thumbnailPreviewModePicker", "thumbnailGeneratePreviews",
     "thumbnailQualityList", "thumbnailDownload", "thumbnailFinalPreview", "data-thumbnail-shape", "./thumbnail.js"
   ].forEach((token) => assert.ok(index.includes(token), `index.html must include ${token}`));
   assert.match(director, /resolved === "thumbnail"/);
@@ -30,12 +31,16 @@ test("thumbnail route exposes the complete Images2.0 production workflow", () =>
 });
 
 test("thumbnail API keeps generation, composition planning, and quality gating server-side", () => {
-  ["/api/thumbnails/review", "/api/thumbnails/select", "/api/thumbnails/generate", "/api/thumbnails/quality"].forEach((route) => {
+  ["/api/thumbnails/review", "/api/thumbnails/select", "/api/thumbnails/previews", "/api/thumbnails/generate", "/api/thumbnails/quality"].forEach((route) => {
     assert.ok(server.includes(route), `server.js must include ${route}`);
   });
   assert.match(server, /authorizeWrite\(req\)/);
   assert.match(server, /generateImages2Design/);
   assert.match(server, /\/api\/thumbnails\/regenerate/);
+  assert.match(server, /previewOutputSize/);
+  assert.match(thumbnail, /generateThumbnailPreviews/);
+  assert.match(index, /コスト優先：2案だけ低画質プレビュー/);
+  assert.match(index, /比較優先：6案すべて低画質プレビュー/);
   assert.match(styles, /Images2\.0 高品質サムネイル制作/);
   assert.match(fs.readFileSync(path.join(root, "thumbnail.js"), "utf8"), /今回だけ再生成する/);
 });

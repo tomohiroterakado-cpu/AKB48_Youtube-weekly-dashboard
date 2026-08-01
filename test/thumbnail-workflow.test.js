@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { createThumbnailReview, selectThumbnailCandidate, assessThumbnailQuality } = require("../lib/thumbnail-workflow");
-const { MAX_SOURCE_IMAGE_BYTES, dataUrlToBlob, buildImageEditPrompt, generateImages2Design, normalizedOutputSize } = require("../lib/images2-client");
+const { createThumbnailReview, selectThumbnailCandidate, selectThumbnailPreviewCandidates, selectAllThumbnailPreviewCandidates, assessThumbnailQuality } = require("../lib/thumbnail-workflow");
+const { MAX_SOURCE_IMAGE_BYTES, dataUrlToBlob, buildImageEditPrompt, generateImages2Design, normalizedOutputSize, normalizedQuality } = require("../lib/images2-client");
 
 const input = {
   jobId: "kawasaki-brave-thunders-wallart",
@@ -32,6 +32,13 @@ test("選択案だけをImages2.0制作ブリーフへ変換する", () => {
   assert.equal(selected.roles.originalComposite, "顔・ロゴ保護担当");
 });
 
+test("低画質比較では任意の2案または6案全体を選べる", () => {
+  const review = createThumbnailReview(input);
+  assert.throws(() => selectThumbnailPreviewCandidates(review, ["A"]), /重複なく2案/);
+  assert.deepEqual(selectThumbnailPreviewCandidates(review, ["A", "C"]).map((item) => item.selectedCandidate.id), ["A", "C"]);
+  assert.deepEqual(selectAllThumbnailPreviewCandidates(review).map((item) => item.selectedCandidate.id), ["A", "B", "C", "D", "E", "F"]);
+});
+
 test("顔・日本語・顔被りに問題があれば完成を止める", () => {
   const quality = assessThumbnailQuality({
     faceLock: false, logoLock: true, textAccuracy: false, telopQuality: true,
@@ -59,6 +66,8 @@ test("画像生成用のサイズは16の倍数へ正規化する", () => {
   assert.equal(normalizedOutputSize({ width: 1706, height: 960 }), "1712x960");
   assert.equal(normalizedOutputSize({ width: 1280, height: 720 }), "1280x720");
   assert.equal(normalizedOutputSize({ width: 400, height: 300 }), "auto");
+  assert.equal(normalizedQuality("low"), "low");
+  assert.equal(normalizedQuality("unknown"), "high");
 });
 
 test("選択案だけを画像編集APIへ渡し、Base64のPNGを返す", async () => {
@@ -68,6 +77,7 @@ test("選択案だけを画像編集APIへ渡し、Base64のPNGを返す", async
     originalImage: "data:image/png;base64,iVBORw0KGgo=",
     production,
     outputSize: { width: 1280, height: 720 },
+    quality: "low",
     apiKey: "test-key",
     model: "gpt-image-2",
     fetchImpl: async (url, options) => {
@@ -79,6 +89,8 @@ test("選択案だけを画像編集APIへ渡し、Base64のPNGを返す", async
   assert.equal(request.options.body.get("model"), "gpt-image-2");
   assert.ok(request.options.body.get("image[]"));
   assert.equal(request.options.body.get("size"), "1280x720");
+  assert.equal(request.options.body.get("quality"), "low");
   assert.equal(output.outputSize, "1280x720");
+  assert.equal(output.quality, "low");
   assert.equal(output.imageDataUrl, "data:image/png;base64,ZmFrZQ==");
 });
