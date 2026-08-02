@@ -9,6 +9,7 @@ const { buildDirectorReport } = require("./lib/analysis");
 const { buildWeeklyDashboardData } = require("./lib/weekly-dashboard-report");
 const { buildReportWithLegacyGoals } = require("./lib/legacy-goals");
 const { approveMarketReport, attachMarketReports, marketReportFromEmail, upsertMarketReport } = require("./lib/market-report");
+const { buildStrategicWeeklyReport } = require("./lib/channel-strategy");
 const { syncLegacyWeeklyReport } = require("./lib/legacy-sheet-sync");
 const { confirmVideos, reclassifyUnconfirmedVideos, updateVideoAttributes } = require("./lib/review-service");
 const { createThumbnailReview, selectThumbnailCandidate, selectThumbnailPreviewCandidates, selectAllThumbnailPreviewCandidates, assessThumbnailQuality } = require("./lib/thumbnail-workflow");
@@ -140,7 +141,9 @@ async function handleApi(req, res, pathname) {
   if (req.method === "GET" && pathname === "/api/weekly-dashboard") {
     const state = await repository.read();
     const report = buildWeeklyDashboardData(state);
-    return json(res, 200, attachMarketReports(await buildReportWithLegacyGoals(repository, report), state.marketReports));
+    const withLegacyGoals = await buildReportWithLegacyGoals(repository, report);
+    const withMarketReports = attachMarketReports(withLegacyGoals, state.marketReports);
+    return json(res, 200, buildStrategicWeeklyReport(withMarketReports));
   }
   if (req.method === "GET" && pathname === "/api/market-reports") {
     const state = await repository.read();

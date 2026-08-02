@@ -250,22 +250,176 @@ function renderInsights() {
 
   const actions = document.getElementById("actionList");
   actions.replaceChildren();
-  data.actions.forEach((action) => actions.appendChild(el("li", "", action)));
+  data.actions.forEach((action) => {
+    if (typeof action === "string") {
+      actions.appendChild(el("li", "", action));
+      return;
+    }
+    const item = el("li", "");
+    item.appendChild(el("strong", "", `${action.horizon || "次回"}: ${action.title || "優先施策"}`));
+    item.appendChild(el("p", "", action.execution || ""));
+    if (action.evidenceDimensions?.length) {
+      item.appendChild(el("p", "kpiNote", `判断軸: ${action.evidenceDimensions.join("・")}`));
+    }
+    item.appendChild(el("p", "kpiNote", `根拠: ${action.rationale || "参考値"}`));
+    item.appendChild(el("p", "kpiNote", `対象: ${action.target || "次回企画"} / 今回の検証KPI: ${action.kpi || "未設定"}`));
+    item.appendChild(el("p", "kpiNote", `合格基準: ${action.passCondition || "次回比較後に設定"} / 期限: ${action.deadline || "未設定"} / 信頼度 ${action.confidence || "低"}`));
+    actions.appendChild(item);
+  });
+}
+
+function markLowConfidence(card, value) {
+  if (!/低|判定不可|データ不足/.test(String(value || ""))) return;
+  card.dataset.confidence = "low";
+  card.style.background = "#fff5f6";
+  card.style.borderColor = "#d98a98";
+}
+
+function ensureChannelTrendPanel() {
+  let panel = document.getElementById("channelTrendPanel");
+  if (panel) return panel;
+  const insightPanel = document.getElementById("insightList")?.closest(".panel");
+  const actionPanel = document.getElementById("actionList")?.closest(".panel");
+  if (!insightPanel || !actionPanel || !actionPanel.parentElement) return null;
+
+  panel = el("article", "panel");
+  panel.id = "channelTrendPanel";
+  const summary = el("p", "marketReportNote");
+  summary.id = "channelTrendSummary";
+  panel.append(
+    el("span", "sectionLabel", "チャンネル戦略"),
+    el("h2", "", "AKBの素を出すちゃんねるの傾向"),
+    summary
+  );
+  const horizons = el("div", "goalGrid");
+  horizons.id = "channelTrendHorizons";
+  panel.appendChild(horizons);
+  const dimensions = el("div", "goalGrid");
+  dimensions.id = "channelTrendDimensions";
+  panel.appendChild(dimensions);
+  const note = el("p", "kpiNote");
+  note.id = "channelTrendNote";
+  panel.appendChild(note);
+
+  actionPanel.parentElement.insertBefore(panel, actionPanel);
+  return panel;
+}
+
+function renderChannelTrends() {
+  const panel = ensureChannelTrendPanel();
+  if (!panel) return;
+  const trends = data.channelTrends;
+  const insightPanel = document.getElementById("insightList")?.closest(".panel");
+  const actionPanel = document.getElementById("actionList")?.closest(".panel");
+  panel.hidden = !trends;
+  if (!trends) {
+    if (insightPanel) insightPanel.style.gridColumn = "";
+    if (actionPanel) actionPanel.style.gridColumn = "";
+    return;
+  }
+  if (insightPanel) insightPanel.style.gridColumn = "1 / -1";
+  panel.style.gridColumn = "1 / -1";
+  if (actionPanel) actionPanel.style.gridColumn = "1 / -1";
+
+  document.getElementById("channelTrendSummary").textContent = trends.summary || "傾向を集計中です。";
+  document.getElementById("channelTrendNote").textContent = trends.note || "";
+  const horizons = document.getElementById("channelTrendHorizons");
+  horizons.replaceChildren();
+  (trends.horizons || []).forEach((item) => {
+    const card = el("article", "goalCard");
+    card.append(
+      el("span", "sectionLabel", `${item.label} / 信頼度 ${item.confidence || "低"}`),
+      el("h3", "", item.period || item.label),
+      el("p", "kpiNote", item.status || "参考値")
+    );
+    (item.findings || []).forEach((finding) => card.appendChild(el("p", "", finding)));
+    card.appendChild(el("p", "videoAdvice", `判断: ${item.decision || "データを蓄積します。"}`));
+    markLowConfidence(card, `${item.confidence} ${item.status}`);
+    horizons.appendChild(card);
+  });
+
+  const dimensions = document.getElementById("channelTrendDimensions");
+  dimensions.replaceChildren();
+  (trends.dimensions || []).forEach((item) => {
+    const card = el("article", "goalCard");
+    card.append(
+      el("span", "sectionLabel", item.status || "参考値"),
+      el("h3", "", item.label),
+      el("p", "", item.text)
+    );
+    markLowConfidence(card, item.status);
+    dimensions.appendChild(card);
+  });
+}
+
+function renderIdeaCard(idea = {}) {
+  const card = el("article", "ideaCard");
+  card.appendChild(el("span", "ideaPriority", `優先度 ${idea.priority || "検証"}`));
+  card.appendChild(el("h3", "", idea.name || "企画案を準備中"));
+  card.appendChild(el("p", "kpiNote", `${idea.evidenceType || "参考提案"} / 信頼度 ${idea.confidence || "低"}`));
+  card.appendChild(el("p", "", idea.aim || "データを蓄積しながら仮説を検証します。"));
+  card.appendChild(el("p", "titleLine", idea.title || "タイトル案は企画決定後に作成"));
+  card.appendChild(el("p", "", `サムネ: ${idea.thumbnail || "企画決定後に設計"}`));
+  card.appendChild(el("p", "", `今回の検証KPI: ${idea.metric || "視聴回数・CTR・登録者増加"}`));
+  card.appendChild(el("p", "kpiNote", `提案区分: ${idea.proposalType || "参考"} / 根拠期間: ${idea.evidencePeriod || "未設定"}`));
+  if (idea.evidenceMetrics?.length) card.appendChild(el("p", "kpiNote", `根拠: ${idea.evidenceMetrics.join(" / ")}`));
+  if (idea.evidenceVideos?.length) {
+    const videos = idea.evidenceVideos
+      .map((video) => `${video?.title || "動画名未取得"}（${formatMetric(video?.views, "number")}回）`)
+      .join(" / ");
+    card.appendChild(el("p", "kpiNote", `根拠動画: ${videos}`));
+  }
+  if (idea.externalReferences?.length) {
+    const references = el("p", "kpiNote", "外部参考: ");
+    idea.externalReferences.forEach((item, index) => {
+      if (index) references.appendChild(document.createTextNode(" / "));
+      const label = `${item.label || "参照元"}${item.observedAt ? `（${item.observedAt}）` : ""}`;
+      const safeUrl = safeExternalUrl(item.url);
+      if (safeUrl) {
+        const link = document.createElement("a");
+        link.href = safeUrl;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = label;
+        references.appendChild(link);
+      } else {
+        references.appendChild(document.createTextNode(label));
+      }
+    });
+    card.appendChild(references);
+  }
+  markLowConfidence(card, `${idea.confidence} ${idea.evidenceType}`);
+  return card;
 }
 
 function renderIdeas() {
   const grid = document.getElementById("ideas");
   grid.replaceChildren();
-  data.ideas.forEach((idea) => {
-    const card = el("article", "ideaCard");
-    card.appendChild(el("span", "ideaPriority", `優先度 ${idea.priority}`));
-    card.appendChild(el("h3", "", idea.name));
-    card.appendChild(el("p", "", idea.aim));
-    card.appendChild(el("p", "titleLine", idea.title));
-    card.appendChild(el("p", "", `サムネ: ${idea.thumbnail}`));
-    card.appendChild(el("p", "", `成功指標: ${idea.metric}`));
-    grid.appendChild(card);
-  });
+  const title = grid.closest(".panel")?.querySelector("h2");
+  if (title) title.textContent = data.ideaGroups?.length ? "実行候補 9パターン" : "実行候補 3パターン";
+  if (data.ideaGroups?.length) {
+    data.ideaGroups.forEach((group) => {
+      const section = el("section", "");
+      section.style.gridColumn = "1 / -1";
+      section.append(
+        el("h3", "", group.title || "企画候補"),
+        el("p", "kpiNote", `${group.basis || "参考情報"}${group.period ? ` / 根拠期間 ${group.period}` : ""}`)
+      );
+      const groupGrid = el("div", "ideaGrid");
+      (group.ideas || []).forEach((idea) => {
+        try {
+          groupGrid.appendChild(renderIdeaCard(idea));
+        } catch (error) {
+          console.error("企画案の描画に失敗しました", error, idea);
+          groupGrid.appendChild(renderIdeaCard({ name: idea?.name, evidenceType: "表示エラー", confidence: "判定不可" }));
+        }
+      });
+      section.appendChild(groupGrid);
+      grid.appendChild(section);
+    });
+    return;
+  }
+  data.ideas.forEach((idea) => grid.appendChild(renderIdeaCard(idea)));
 }
 
 function renderMarketReport() {
@@ -289,9 +443,10 @@ function renderMarketReport() {
     (section.entries || []).forEach((entry) => {
       const item = el("div", "marketEntry");
       item.append(el("strong", "", entry.label), el("p", "", entry.text));
-      if (entry.link) {
+      const safeUrl = safeExternalUrl(entry.link);
+      if (safeUrl) {
         const link = el("a", "marketLink", entry.linkLabel || "参照元を開く");
-        link.href = entry.link;
+        link.href = safeUrl;
         link.target = "_blank";
         link.rel = "noreferrer";
         item.appendChild(link);
@@ -300,6 +455,15 @@ function renderMarketReport() {
     });
     grid.appendChild(card);
   });
+}
+
+function safeExternalUrl(value) {
+  try {
+    const parsed = new URL(String(value || ""));
+    return parsed.protocol === "https:" ? parsed.href : "";
+  } catch {
+    return "";
+  }
 }
 
 let data = window.AKB_WEEKLY_DATA;
@@ -354,8 +518,10 @@ function mergeDirectorWeeks(primary, directorData) {
       headline: week.headline || existing.headline,
       decisions: week.decisions?.length ? week.decisions : existing.decisions,
       trend: week.trend?.sections?.length ? week.trend : existing.trend,
+      channelTrends: week.channelTrends?.horizons?.length ? week.channelTrends : existing.channelTrends,
       insights: week.insights?.length ? week.insights : existing.insights,
       actions: week.actions?.length ? week.actions : existing.actions,
+      ideaGroups: week.ideaGroups?.length ? week.ideaGroups : existing.ideaGroups,
       ideas: week.ideas?.length ? week.ideas : existing.ideas,
       kpis: mergeWeekKpis(existing.kpis, week.kpis),
       goals: week.goals?.items?.length ? week.goals : existing.goals,
@@ -486,6 +652,7 @@ function renderAll() {
   renderVideos();
   renderDailyBars();
   renderInsights();
+  renderChannelTrends();
   renderIdeas();
   renderMarketReport();
 }
