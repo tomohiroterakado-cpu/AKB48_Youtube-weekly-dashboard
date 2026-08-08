@@ -30,12 +30,14 @@ const thumbnailGenerationGuard = new ThumbnailGenerationGuard();
 function previewOutputSize(outputSize) {
   const width = Number(outputSize?.width);
   const height = Number(outputSize?.height);
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return { width: 1024, height: 576 };
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return { width: 1536, height: 864 };
   const aspect = Math.min(3, Math.max(1 / 3, width / height));
-  const longEdge = 1024;
+  // 1024x576 falls below the image API's minimum pixel budget. This remains a
+  // low-quality preview, but keeps enough pixels for a valid 16:9 canvas.
+  const longEdge = 1536;
   const rawWidth = aspect >= 1 ? longEdge : longEdge * aspect;
   const rawHeight = aspect >= 1 ? longEdge / aspect : longEdge;
-  const align = (value) => Math.max(512, Math.min(1024, Math.round(value / 16) * 16));
+  const align = (value) => Math.max(512, Math.min(1536, Math.round(value / 16) * 16));
   return { width: align(rawWidth), height: align(rawHeight) };
 }
 

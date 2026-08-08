@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { createThumbnailReview, selectThumbnailCandidate, selectThumbnailPreviewCandidates, selectAllThumbnailPreviewCandidates, assessThumbnailQuality } = require("../lib/thumbnail-workflow");
-const { MAX_SOURCE_IMAGE_BYTES, dataUrlToBlob, buildImageEditPrompt, generateImages2Design, normalizedOutputSize, normalizedQuality } = require("../lib/images2-client");
+const { MAX_SOURCE_IMAGE_BYTES, MIN_IMAGE_PIXEL_BUDGET, dataUrlToBlob, buildImageEditPrompt, generateImages2Design, normalizedOutputSize, normalizedQuality } = require("../lib/images2-client");
 
 const input = {
   jobId: "kawasaki-brave-thunders-wallart",
@@ -64,10 +64,31 @@ test("画像生成APIは画面側の制限を回避した8MB超の画像を受�
 
 test("画像生成用のサイズは16の倍数へ正規化する", () => {
   assert.equal(normalizedOutputSize({ width: 1706, height: 960 }), "1712x960");
-  assert.equal(normalizedOutputSize({ width: 1280, height: 720 }), "1280x720");
+  assert.equal(normalizedOutputSize({ width: 1536, height: 864 }), "1536x864");
+  assert.equal(normalizedOutputSize({ width: 1024, height: 576 }), "auto");
+  assert.equal(MIN_IMAGE_PIXEL_BUDGET, 1024 * 1024);
   assert.equal(normalizedOutputSize({ width: 400, height: 300 }), "auto");
   assert.equal(normalizedQuality("low"), "low");
   assert.equal(normalizedQuality("unknown"), "high");
+});
+
+test("最小ピクセル数のエラー時はサイズautoで一度だけ再試行する", async () => {
+  const production = selectThumbnailCandidate(createThumbnailReview(input), "A");
+  const sizes = [];
+  const output = await generateImages2Design({
+    originalImage: "data:image/png;base64,iVBORw0KGgo=",
+    production,
+    outputSize: { width: 1536, height: 864 },
+    quality: "low",
+    apiKey: "test-key",
+    fetchImpl: async (_url, options) => {
+      sizes.push(options.body.get("size"));
+      if (sizes.length === 1) return { ok: false, status: 400, json: async () => ({ error: { message: "Requested resolution is below the current minimum pixel budget." } }) };
+      return { ok: true, json: async () => ({ data: [{ b64_json: "ZmFrZQ==" }] }) };
+    }
+  });
+  assert.deepEqual(sizes, ["1536x864", "auto"]);
+  assert.equal(output.outputSize, "auto");
 });
 
 test("選択案だけを画像編集APIへ渡し、Base64のPNGを返す", async () => {
@@ -88,9 +109,9 @@ test("選択案だけを画像編集APIへ渡し、Base64のPNGを返す", async
   assert.equal(request.url, "https://api.openai.com/v1/images/edits");
   assert.equal(request.options.body.get("model"), "gpt-image-2");
   assert.ok(request.options.body.get("image[]"));
-  assert.equal(request.options.body.get("size"), "1280x720");
+  assert.equal(request.options.body.get("size"), "auto");
   assert.equal(request.options.body.get("quality"), "low");
-  assert.equal(output.outputSize, "1280x720");
+  assert.equal(output.outputSize, "auto");
   assert.equal(output.quality, "low");
   assert.equal(output.imageDataUrl, "data:image/png;base64,ZmFrZQ==");
 });
