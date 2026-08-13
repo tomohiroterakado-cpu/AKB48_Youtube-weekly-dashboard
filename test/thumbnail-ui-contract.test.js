@@ -25,6 +25,10 @@ test("thumbnail route exposes the complete Images2.0 production workflow", () =>
   assert.match(styles, /thumbnailPreviewSurface img[^\n]*pointer-events: none/);
   assert.match(styles, /thumbnailRegion--ellipse/);
   assert.match(thumbnail, /createProtectionMask/);
+  assert.match(thumbnail, /drawOriginalInsideRegion/);
+  assert.match(thumbnail, /must never be blended with image-model output/);
+  assert.match(thumbnail, /保護範囲を元画像から再復元する/);
+  assert.match(thumbnail, /restoredFaceCount/);
   assert.match(thumbnail, /renderThumbnailSafetyFallbackOption/);
   assert.match(thumbnail, /AIなしでテロップを合成する/);
   assert.match(thumbnail, /createTextOnlyThumbnail/);

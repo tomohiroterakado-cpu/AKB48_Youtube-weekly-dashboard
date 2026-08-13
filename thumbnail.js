@@ -8,6 +8,7 @@ const thumbnailState = {
   previewCandidateIds: [],
   previewImages: {},
   protectedRegions: [],
+  protectionReport: null,
   drawingShape: "ellipse",
   generatedImageDataUrl: "",
   finalImageDataUrl: "",
@@ -130,6 +131,7 @@ function resetThumbnailResult() {
   thumbnailState.previewImages = {};
   thumbnailState.generatedImageDataUrl = "";
   thumbnailState.finalImageDataUrl = "";
+  thumbnailState.protectionReport = null;
   document.getElementById("thumbnailCandidateRail").replaceChildren();
   document.getElementById("thumbnailPreviewControls").hidden = true;
   document.getElementById("thumbnailQualityList").replaceChildren();
@@ -391,20 +393,56 @@ function createProtectionMask(width, height, shape) {
   return mask;
 }
 
-function compositeProtectedRegion(context, original, region, canvas) {
+function expandedProtectionRegion(region, padding) {
+  const left = Math.max(0, region.x - padding);
+  const top = Math.max(0, region.y - padding);
+  const right = Math.min(1, region.x + region.w + padding);
+  const bottom = Math.min(1, region.y + region.h + padding);
+  return { ...region, x: left, y: top, w: right - left, h: bottom - top };
+}
+
+function traceProtectionPath(context, x, y, width, height, shape) {
+  context.beginPath();
+  if (shape === "ellipse") {
+    context.ellipse(x + width / 2, y + height / 2, Math.max(1, width / 2), Math.max(1, height / 2), 0, 0, Math.PI * 2);
+  } else {
+    drawRoundedRect(context, x, y, width, height, Math.min(18, Math.max(4, Math.min(width, height) * 0.12)));
+  }
+}
+
+function drawOriginalInsideRegion(context, original, region, canvas) {
   const x = Math.round(region.x * canvas.width);
   const y = Math.round(region.y * canvas.height);
   const w = Math.round(region.w * canvas.width);
   const h = Math.round(region.h * canvas.height);
-  if (w < 2 || h < 2) return;
+  if (w < 2 || h < 2) return false;
+  context.save();
+  traceProtectionPath(context, x, y, w, h, region.shape);
+  context.clip();
+  // This is intentionally a full, hard restore. The selected face/logo pixels
+  // must never be blended with image-model output.
+  context.drawImage(original, 0, 0, original.naturalWidth, original.naturalHeight, 0, 0, canvas.width, canvas.height);
+  context.restore();
+  return true;
+}
+
+function compositeProtectedRegion(context, original, region, canvas) {
+  const padding = region.type === "face" ? 0.022 : 0.012;
+  const outerRegion = expandedProtectionRegion(region, padding);
+  const outerX = Math.round(outerRegion.x * canvas.width);
+  const outerY = Math.round(outerRegion.y * canvas.height);
+  const outerW = Math.round(outerRegion.w * canvas.width);
+  const outerH = Math.round(outerRegion.h * canvas.height);
+  if (outerW < 2 || outerH < 2) return false;
   const patch = document.createElement("canvas");
-  patch.width = w;
-  patch.height = h;
+  patch.width = outerW;
+  patch.height = outerH;
   const patchContext = patch.getContext("2d");
-  patchContext.drawImage(original, region.x * original.naturalWidth, region.y * original.naturalHeight, region.w * original.naturalWidth, region.h * original.naturalHeight, 0, 0, w, h);
+  patchContext.drawImage(original, outerRegion.x * original.naturalWidth, outerRegion.y * original.naturalHeight, outerRegion.w * original.naturalWidth, outerRegion.h * original.naturalHeight, 0, 0, outerW, outerH);
   patchContext.globalCompositeOperation = "destination-in";
-  patchContext.drawImage(createProtectionMask(w, h, region.shape), 0, 0);
-  context.drawImage(patch, x, y);
+  patchContext.drawImage(createProtectionMask(outerW, outerH, outerRegion.shape), 0, 0);
+  context.drawImage(patch, outerX, outerY);
+  return drawOriginalInsideRegion(context, original, region, canvas);
 }
 
 async function compositeProtectedRegions(generatedImageDataUrl) {
@@ -414,7 +452,12 @@ async function compositeProtectedRegions(generatedImageDataUrl) {
   canvas.height = thumbnailState.sourceSize?.height || generated.naturalHeight;
   const context = canvas.getContext("2d");
   context.drawImage(generated, 0, 0, generated.naturalWidth, generated.naturalHeight, 0, 0, canvas.width, canvas.height);
-  thumbnailState.protectedRegions.forEach((region) => compositeProtectedRegion(context, original, region, canvas));
+  const restored = thumbnailState.protectedRegions.filter((region) => compositeProtectedRegion(context, original, region, canvas));
+  thumbnailState.protectionReport = {
+    restoredCount: restored.length,
+    restoredFaceCount: restored.filter((region) => region.type === "face").length,
+    restoredLogoCount: restored.filter((region) => region.type === "logo").length
+  };
   return canvas.toDataURL("image/png");
 }
 
@@ -516,6 +559,7 @@ function renderThumbnailQuality() {
   ].forEach(([key, label]) => {
     const row = thumbnailEl("label", "thumbnailQualityItem");
     const input = document.createElement("input"); input.type = "checkbox"; input.name = key;
+    if (key === "faceLock" && thumbnailState.protectionReport?.restoredFaceCount > 0) input.checked = true;
     row.append(input, thumbnailEl("span", "", label));
     list.appendChild(row);
   });
@@ -523,6 +567,21 @@ function renderThumbnailQuality() {
   evaluate.type = "button";
   evaluate.addEventListener("click", evaluateThumbnailQuality);
   list.appendChild(evaluate);
+}
+
+async function restoreProtectedRegionsWithoutGeneration() {
+  const result = document.getElementById("thumbnailStatus");
+  if (!thumbnailState.finalImageDataUrl) return;
+  try {
+    result.className = "infoItem";
+    result.textContent = "指定した保護範囲を元画像から完全に再復元しています。画像生成は行いません...";
+    showThumbnailFinal(await compositeProtectedRegions(thumbnailState.finalImageDataUrl), "保護範囲を元画像から再復元したサムネイル");
+    result.className = "infoItem";
+    result.textContent = "指定した保護範囲を元画像から完全に再復元しました。追加料金はかかりません。顔・表情の項目を確認して、もう一度品質を判定してください。";
+  } catch (error) {
+    result.className = "errorItem";
+    result.textContent = error.message;
+  }
 }
 
 async function generateThumbnail() {
@@ -616,9 +675,17 @@ async function evaluateThumbnailQuality() {
     const download = document.getElementById("thumbnailDownload");
     download.disabled = quality.status !== "approved_for_export";
     result.className = quality.status === "approved_for_export" ? "infoItem" : "warningItem";
-    result.textContent = quality.status === "approved_for_export"
-      ? "公開前品質をすべて通過しました。最終PNGをダウンロードできます。"
-      : `修正が必要です：${quality.fallbacks.join("、")}`;
+    if (quality.status === "approved_for_export") {
+      result.textContent = "公開前品質をすべて通過しました。最終PNGをダウンロードできます。";
+    } else if (quality.fallbacks.includes("restore_original_faces") && thumbnailState.finalImageDataUrl) {
+      result.replaceChildren(document.createTextNode(`修正が必要です：${quality.fallbacks.join("、")}。`));
+      const restore = thumbnailEl("button", "secondaryButton", "保護範囲を元画像から再復元する");
+      restore.type = "button";
+      restore.addEventListener("click", restoreProtectedRegionsWithoutGeneration);
+      result.append(document.createTextNode(" "), restore);
+    } else {
+      result.textContent = `修正が必要です：${quality.fallbacks.join("、")}`;
+    }
   } catch (error) {
     result.className = "errorItem";
     result.textContent = error.message;
