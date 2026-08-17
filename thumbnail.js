@@ -11,6 +11,7 @@ const thumbnailState = {
   protectionReport: null,
   captionLayout: null,
   captionReport: null,
+  captionPlacement: "auto",
   drawingShape: "ellipse",
   generatedImageDataUrl: "",
   finalImageDataUrl: "",
@@ -80,6 +81,22 @@ function setThumbnailDrawingShape(shape) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+}
+
+function setThumbnailCaptionPlacement(placement) {
+  thumbnailState.captionPlacement = placement === "bottom-band" ? "bottom-band" : "auto";
+  thumbnailState.captionLayout = null;
+  thumbnailState.captionReport = null;
+  document.querySelectorAll("[data-thumbnail-caption-placement]").forEach((button) => {
+    const active = button.dataset.thumbnailCaptionPlacement === thumbnailState.captionPlacement;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  const hint = document.getElementById("thumbnailCaptionPlacementHint");
+  if (!hint) return;
+  hint.textContent = thumbnailState.captionPlacement === "bottom-band"
+    ? "下帯だけを差し替えます。保護枠が下帯に重なっていても、下帯以外の人物・背景は元画像のまま残します。"
+    : "空き領域を自動で探します。空きがなければ、下帯だけを差し替えて文言を切らずに配置します。";
 }
 
 function bindThumbnailProtectionDrawing() {
@@ -493,6 +510,7 @@ function getThumbnailCaptionLayoutOrThrow() {
     width: thumbnailState.sourceSize.width,
     height: thumbnailState.sourceSize.height,
     protectedRegions: thumbnailState.protectedRegions,
+    placement: thumbnailState.captionPlacement,
     measureText: (line, fontSize) => {
       context.font = `900 ${fontSize}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
       return context.measureText(line).width;
@@ -526,6 +544,21 @@ function drawExactThumbnailCaption(context, layout) {
   context.restore();
 }
 
+function redrawEditableCaptionBand(context, generated, layout, canvas) {
+  if (layout?.placement !== "bottom-band" || !layout.replacementArea) return;
+  const area = layout.replacementArea;
+  const x = Math.round(area.x * canvas.width);
+  const y = Math.round(area.y * canvas.height);
+  const width = Math.round(area.w * canvas.width);
+  const height = Math.round(area.h * canvas.height);
+  context.save();
+  context.beginPath();
+  context.rect(x, y, width, height);
+  context.clip();
+  context.drawImage(generated, 0, 0, generated.naturalWidth, generated.naturalHeight, 0, 0, canvas.width, canvas.height);
+  context.restore();
+}
+
 async function composeThumbnailWithExactCaption(generatedImageDataUrl, suppliedLayout) {
   const [original, generated] = await Promise.all([thumbnailImage(thumbnailState.imageDataUrl), thumbnailImage(generatedImageDataUrl)]);
   const canvas = document.createElement("canvas");
@@ -533,8 +566,11 @@ async function composeThumbnailWithExactCaption(generatedImageDataUrl, suppliedL
   canvas.height = thumbnailState.sourceSize?.height || generated.naturalHeight;
   const context = canvas.getContext("2d");
   context.drawImage(generated, 0, 0, generated.naturalWidth, generated.naturalHeight, 0, 0, canvas.width, canvas.height);
-  const restored = thumbnailState.protectedRegions.filter((region) => compositeProtectedRegion(context, original, region, canvas));
   const layout = suppliedLayout || getThumbnailCaptionLayoutOrThrow();
+  const restored = thumbnailState.protectedRegions.filter((region) => compositeProtectedRegion(context, original, region, canvas));
+  // A requested lower-band replacement is the sole exception to the restored
+  // regions: redraw that band, then place the exact operator-specified copy.
+  redrawEditableCaptionBand(context, generated, layout, canvas);
   drawExactThumbnailCaption(context, layout);
   thumbnailState.protectionReport = {
     restoredCount: restored.length,
@@ -636,7 +672,9 @@ async function generateThumbnail() {
     thumbnailState.generatedImageDataUrl = generated.imageDataUrl;
     showThumbnailFinal(await composeThumbnailWithExactCaption(generated.imageDataUrl, captionLayout), "AI生成と保護領域合成後のサムネイル");
     result.className = "infoItem";
-    result.textContent = "合成が完了しました。指定テロップは保護範囲と右下表示を避け、切らずに合成しています。最終品質を確認してください。";
+    result.textContent = captionLayout.placement === "bottom-band"
+      ? "合成が完了しました。下帯だけを差し替え、指定テロップを切らずに合成しています。最終品質を確認してください。"
+      : "合成が完了しました。指定テロップは保護範囲と右下表示を避け、切らずに合成しています。最終品質を確認してください。";
   } catch (error) {
     if (error.status === 409) {
       renderThumbnailRegenerationOption(error.message);
@@ -741,6 +779,10 @@ function loadThumbnailWorkspace() {
     button.onclick = () => setThumbnailDrawingShape(button.dataset.thumbnailShape);
   });
   setThumbnailDrawingShape(thumbnailState.drawingShape);
+  document.querySelectorAll("[data-thumbnail-caption-placement]").forEach((button) => {
+    button.onclick = () => setThumbnailCaptionPlacement(button.dataset.thumbnailCaptionPlacement);
+  });
+  setThumbnailCaptionPlacement(thumbnailState.captionPlacement);
   document.getElementById("thumbnailOriginalFile").onchange = () => readThumbnailFile().catch((error) => { document.getElementById("thumbnailStatus").className = "errorItem"; document.getElementById("thumbnailStatus").textContent = error.message; });
   document.getElementById("thumbnailReview").onclick = createThumbnailReview;
   document.querySelectorAll("input[name=thumbnailPreviewMode]").forEach((input) => {

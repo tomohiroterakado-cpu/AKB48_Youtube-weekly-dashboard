@@ -56,3 +56,10 @@ test("指定テロップを安全領域へ正確に合成する契約を維持�
   assert.match(thumbnail, /captionSafeArea/);
   assert.match(thumbnail, /切らずに正確に合成/);
 });
+
+test("保護枠が下帯に重なっても下帯だけを差し替えられる", () => {
+  assert.match(index, /下帯を差し替え/);
+  assert.match(thumbnail, /setThumbnailCaptionPlacement/);
+  assert.match(thumbnail, /placement: thumbnailState\.captionPlacement/);
+  assert.match(thumbnail, /redrawEditableCaptionBand/);
+});

@@ -6,6 +6,9 @@
   const OUTER_MARGIN = 0.035;
   // The YouTube duration badge occupies this corner on desktop and mobile.
   const DURATION_BADGE = { x: 0.79, y: 0.83, w: 0.19, h: 0.14 };
+  // A deliberately editable lower-third area. It can override a broad protection
+  // rectangle when the operator wants to replace only the existing caption band.
+  const LOWER_THIRD_CAPTION_AREA = { x: 0.035, y: 0.77, w: 0.72, h: 0.19 };
 
   function clamp(value, minimum, maximum) {
     return Math.min(maximum, Math.max(minimum, value));
@@ -98,30 +101,8 @@
     return null;
   }
 
-  function createCaptionLayout({ text, width, height, protectedRegions = [], measureText }) {
-    const requestedText = String(text || "").trim();
-    if (!requestedText) throw new Error("変更後のテロップ文言を入力してください。");
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) throw new Error("元サムネイルのサイズを取得できませんでした。");
-    if (typeof measureText !== "function") throw new Error("テロップの幅を計測できませんでした。");
-
-    const blockers = [DURATION_BADGE];
-    protectedRegions.forEach((region) => {
-      const normalized = normalizedRect(region);
-      if (!normalized) return;
-      blockers.push(expand(normalized, region?.type === "face" ? 0.026 : 0.018));
-    });
-
-    const fits = candidateAreas(blockers)
-      .map((area) => fitTextIntoArea({ text: requestedText, area, width, height, measureText }))
-      .filter(Boolean)
-      .sort((first, second) => {
-        if (second.fontSize !== first.fontSize) return second.fontSize - first.fontSize;
-        return (second.area.w * second.area.h) - (first.area.w * first.area.h);
-      });
-    const best = fits[0];
-    if (!best) throw new Error("安全なテロップ領域がありません。保護範囲を見直してください。文言は切らずに停止しました。");
-
-    const textWidth = Math.max(...best.lines.map((line) => measureText(line, best.fontSize)));
+  function buildLayout(best, requestedText, width, height, blockers, placement, usedFallback) {
+    const textWidth = Math.max(...best.lines.map((line) => best.measureText(line, best.fontSize)));
     const textHeight = best.lines.length * best.lineHeight;
     const textX = Math.round((best.area.x * width) + (best.pixelWidth / 2));
     const textY = Math.round((best.area.y * height) + (best.pixelHeight / 2));
@@ -138,13 +119,62 @@
       fontSize: best.fontSize,
       lineHeight: best.lineHeight,
       safeArea: best.area,
+      // The lower third is intentionally re-generated after protected regions are restored.
+      replacementArea: placement === "bottom-band" ? best.area : null,
+      placement,
+      usedBottomBandFallback: usedFallback,
       textBounds,
       normalizedTextBounds,
       blockers,
-      hasCollision: blockers.some((blocker) => rectanglesIntersect(normalizedTextBounds, blocker)),
+      hasCollision: placement !== "bottom-band" && blockers.some((blocker) => rectanglesIntersect(normalizedTextBounds, blocker)),
       mobileReadable: best.fontSize >= width * 0.032,
       youtubeUiSafe: !rectanglesIntersect(normalizedTextBounds, DURATION_BADGE)
     };
+  }
+
+  function createCaptionLayout({ text, width, height, protectedRegions = [], measureText, placement = "auto" }) {
+    const requestedText = String(text || "").trim();
+    if (!requestedText) throw new Error("変更後のテロップ文言を入力してください。");
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) throw new Error("元サムネイルのサイズを取得できませんでした。");
+    if (typeof measureText !== "function") throw new Error("テロップの幅を計測できませんでした。");
+
+    const blockers = [DURATION_BADGE];
+    protectedRegions.forEach((region) => {
+      const normalized = normalizedRect(region);
+      if (!normalized) return;
+      blockers.push(expand(normalized, region?.type === "face" ? 0.026 : 0.018));
+    });
+
+    const bottomBandFit = fitTextIntoArea({
+      text: requestedText,
+      area: LOWER_THIRD_CAPTION_AREA,
+      width,
+      height,
+      measureText
+    });
+    if (placement === "bottom-band") {
+      if (!bottomBandFit) throw new Error("下帯のテロップ領域に文言が収まりません。文言を短くしてください。");
+      bottomBandFit.measureText = measureText;
+      return buildLayout(bottomBandFit, requestedText, width, height, blockers, "bottom-band", false);
+    }
+
+    const fits = candidateAreas(blockers)
+      .map((area) => fitTextIntoArea({ text: requestedText, area, width, height, measureText }))
+      .filter(Boolean)
+      .sort((first, second) => {
+        if (second.fontSize !== first.fontSize) return second.fontSize - first.fontSize;
+        return (second.area.w * second.area.h) - (first.area.w * first.area.h);
+      });
+    const best = fits[0];
+    if (best) {
+      best.measureText = measureText;
+      return buildLayout(best, requestedText, width, height, blockers, "auto", false);
+    }
+    if (bottomBandFit) {
+      bottomBandFit.measureText = measureText;
+      return buildLayout(bottomBandFit, requestedText, width, height, blockers, "bottom-band", true);
+    }
+    throw new Error("安全なテロップ領域がありません。下帯にも収まらないため、文言を短くしてください。文言は切らずに停止しました。");
   }
 
   return { createCaptionLayout, normalizedRect, rectanglesIntersect };

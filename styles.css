@@ -816,6 +816,10 @@ h2 {
 .thumbnailShapePicker { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; color: var(--muted); font-size: 12px; font-weight: 800; }
 .thumbnailShapeButton { min-width: 58px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; background: #fffdfa; color: var(--ink); font: inherit; cursor: pointer; }
 .thumbnailShapeButton.active { border-color: var(--akb-red); background: #fff0f3; color: var(--akb-red); }
+.thumbnailCaptionPlacement { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 0 0 6px; color: var(--muted); font-size: 12px; font-weight: 800; }
+.thumbnailCaptionPlacementButton { min-width: 118px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; background: #fffdfa; color: var(--ink); font: inherit; cursor: pointer; }
+.thumbnailCaptionPlacementButton.active { border-color: var(--teal); background: #eaf8f7; color: #087d7b; }
+.thumbnailCaptionPlacementHint { margin: 0 0 10px; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .thumbnailProtectedList { display: grid; gap: 7px; margin-top: 12px; }
 .thumbnailProtectedRow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 9px 10px; border: 1px solid var(--line); background: #fffdfa; font-size: 13px; }
 .thumbnailProtectedRow small { color: var(--muted); }
