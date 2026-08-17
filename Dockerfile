@@ -6,7 +6,7 @@ COPY package.json server.js index.html styles.css app.js ./
 COPY data ./data
 COPY lib ./lib
 COPY assets ./assets
-COPY director.js thumbnail.js prepublish.js ./
+COPY director.js thumbnail.js thumbnail-caption-layout.js prepublish.js ./
 
 ENV NODE_ENV=production
 
