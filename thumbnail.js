@@ -95,8 +95,8 @@ function setThumbnailCaptionPlacement(placement) {
   const hint = document.getElementById("thumbnailCaptionPlacementHint");
   if (!hint) return;
   hint.textContent = thumbnailState.captionPlacement === "bottom-band"
-    ? "下帯だけを差し替えます。保護枠が下帯に重なっていても、下帯以外の人物・背景は元画像のまま残します。"
-    : "空き領域を自動で探します。空きがなければ、下帯だけを差し替えて文言を切らずに配置します。";
+    ? "元画像に下帯・装飾がある場合だけ、その意匠を活かして文言を差し替えます。下帯がない画像には新たに追加しません。"
+    : "空き領域を自動で探します。既存の下帯・装飾がある場合だけ活かし、ない画像には帯を追加せず文言を切らずに配置します。";
 }
 
 function bindThumbnailProtectionDrawing() {
@@ -353,7 +353,7 @@ async function generateThumbnailPreviews() {
       })
     });
     for (const preview of payload.previews || []) {
-      thumbnailState.previewImages[preview.candidateId] = await composeThumbnailWithExactCaption(preview.imageDataUrl, captionLayout);
+      thumbnailState.previewImages[preview.candidateId] = await composeThumbnailWithExactCaption(preview.imageDataUrl, captionLayout, preview.candidateId);
     }
     thumbnailState.previewCandidateIds = candidateIds;
     renderThumbnailCandidates();
@@ -520,8 +520,22 @@ function getThumbnailCaptionLayoutOrThrow() {
   return layout;
 }
 
-function drawExactThumbnailCaption(context, layout) {
+const THUMBNAIL_CAPTION_STYLES = {
+  A: { outer: "#4b2131", middle: "#d97845", fillTop: "#fffdf4", fillBottom: "#f3bd6e" },
+  B: { outer: "#281a33", middle: "#df5176", fillTop: "#fff7f9", fillBottom: "#f192ad" },
+  C: { outer: "#173363", middle: "#f0b83c", fillTop: "#fffdef", fillBottom: "#f6d463" },
+  D: { outer: "#244a4d", middle: "#89bdaf", fillTop: "#fffef5", fillBottom: "#d6e9da" },
+  E: { outer: "#503346", middle: "#dfaa93", fillTop: "#fff9f2", fillBottom: "#efc1ac" },
+  F: { outer: "#353535", middle: "#e2ded7", fillTop: "#ffffff", fillBottom: "#f1ede6" }
+};
+
+function thumbnailCaptionStyle(candidateId) {
+  return THUMBNAIL_CAPTION_STYLES[candidateId] || THUMBNAIL_CAPTION_STYLES.B;
+}
+
+function drawExactThumbnailCaption(context, layout, candidateId = thumbnailState.selectedCandidateId) {
   const { textBounds, fontSize, lineHeight, lines } = layout;
+  const style = thumbnailCaptionStyle(candidateId);
   const centerX = textBounds.x + textBounds.w / 2;
   const firstY = textBounds.y + (textBounds.h - lines.length * lineHeight) / 2 + lineHeight / 2;
   context.save();
@@ -529,16 +543,20 @@ function drawExactThumbnailCaption(context, layout) {
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.lineJoin = "round";
-  context.lineWidth = Math.max(3, Math.round(fontSize * 0.075));
-  context.strokeStyle = "rgba(67, 18, 48, 0.92)";
-  context.shadowColor = "rgba(34, 14, 25, 0.48)";
-  context.shadowBlur = Math.max(3, Math.round(fontSize * 0.11));
-  context.shadowOffsetY = Math.max(1, Math.round(fontSize * 0.045));
+  context.lineWidth = Math.max(4, Math.round(fontSize * 0.105));
+  context.strokeStyle = style.outer;
+  context.shadowColor = "rgba(24, 16, 24, 0.30)";
+  context.shadowBlur = Math.max(2, Math.round(fontSize * 0.055));
+  context.shadowOffsetY = Math.max(1, Math.round(fontSize * 0.03));
+  lines.forEach((line, index) => context.strokeText(line, centerX, firstY + index * lineHeight));
+  context.shadowColor = "transparent";
+  context.lineWidth = Math.max(2, Math.round(fontSize * 0.036));
+  context.strokeStyle = style.middle;
   lines.forEach((line, index) => context.strokeText(line, centerX, firstY + index * lineHeight));
   const fill = context.createLinearGradient(0, textBounds.y, 0, textBounds.y + textBounds.h);
-  fill.addColorStop(0, "#ffffff");
-  fill.addColorStop(0.52, "#fff6f7");
-  fill.addColorStop(1, "#ffd6e2");
+  fill.addColorStop(0, style.fillTop);
+  fill.addColorStop(0.52, style.fillTop);
+  fill.addColorStop(1, style.fillBottom);
   context.fillStyle = fill;
   lines.forEach((line, index) => context.fillText(line, centerX, firstY + index * lineHeight));
   context.restore();
@@ -555,11 +573,13 @@ function redrawEditableCaptionBand(context, generated, layout, canvas) {
   context.beginPath();
   context.rect(x, y, width, height);
   context.clip();
+  // Restore only the source/AI visual treatment under the exact caption.
+  // This never draws a new band or panel.
   context.drawImage(generated, 0, 0, generated.naturalWidth, generated.naturalHeight, 0, 0, canvas.width, canvas.height);
   context.restore();
 }
 
-async function composeThumbnailWithExactCaption(generatedImageDataUrl, suppliedLayout) {
+async function composeThumbnailWithExactCaption(generatedImageDataUrl, suppliedLayout, candidateId = thumbnailState.selectedCandidateId) {
   const [original, generated] = await Promise.all([thumbnailImage(thumbnailState.imageDataUrl), thumbnailImage(generatedImageDataUrl)]);
   const canvas = document.createElement("canvas");
   canvas.width = thumbnailState.sourceSize?.width || generated.naturalWidth;
@@ -568,10 +588,10 @@ async function composeThumbnailWithExactCaption(generatedImageDataUrl, suppliedL
   context.drawImage(generated, 0, 0, generated.naturalWidth, generated.naturalHeight, 0, 0, canvas.width, canvas.height);
   const layout = suppliedLayout || getThumbnailCaptionLayoutOrThrow();
   const restored = thumbnailState.protectedRegions.filter((region) => compositeProtectedRegion(context, original, region, canvas));
-  // A requested lower-band replacement is the sole exception to the restored
-  // regions: redraw that band, then place the exact operator-specified copy.
+  // An existing lower-band treatment is the sole exception to restored regions.
+  // It is never created here; only the operator-specified copy is added.
   redrawEditableCaptionBand(context, generated, layout, canvas);
-  drawExactThumbnailCaption(context, layout);
+  drawExactThumbnailCaption(context, layout, candidateId);
   thumbnailState.protectionReport = {
     restoredCount: restored.length,
     restoredFaceCount: restored.filter((region) => region.type === "face").length,
@@ -670,11 +690,14 @@ async function generateThumbnail() {
       })
     });
     thumbnailState.generatedImageDataUrl = generated.imageDataUrl;
-    showThumbnailFinal(await composeThumbnailWithExactCaption(generated.imageDataUrl, captionLayout), "AI生成と保護領域合成後のサムネイル");
+    showThumbnailFinal(
+      await composeThumbnailWithExactCaption(generated.imageDataUrl, captionLayout, thumbnailState.selectedCandidateId),
+      "AI生成と保護領域合成後のサムネイル"
+    );
     result.className = "infoItem";
     result.textContent = captionLayout.placement === "bottom-band"
-      ? "合成が完了しました。下帯だけを差し替え、指定テロップを切らずに合成しています。最終品質を確認してください。"
-      : "合成が完了しました。指定テロップは保護範囲と右下表示を避け、切らずに合成しています。最終品質を確認してください。";
+      ? "合成が完了しました。元画像に下帯・装飾がある場合だけ、その意匠を活かして指定テロップを切らずに合成しています。最終品質を確認してください。"
+      : "合成が完了しました。指定テロップは保護範囲と右下表示を避け、帯を追加せずに切らずに合成しています。最終品質を確認してください。";
   } catch (error) {
     if (error.status === 409) {
       renderThumbnailRegenerationOption(error.message);

@@ -6,8 +6,8 @@
   const OUTER_MARGIN = 0.035;
   // The YouTube duration badge occupies this corner on desktop and mobile.
   const DURATION_BADGE = { x: 0.79, y: 0.83, w: 0.19, h: 0.14 };
-  // A deliberately editable lower-third area. It can override a broad protection
-  // rectangle when the operator wants to replace only the existing caption band.
+  // An existing lower-third caption area. Reuse it only when the source already
+  // has that visual treatment; the compositor itself never adds a new band.
   const LOWER_THIRD_CAPTION_AREA = { x: 0.035, y: 0.77, w: 0.72, h: 0.19 };
 
   function clamp(value, minimum, maximum) {
@@ -92,9 +92,11 @@
     const minFont = Math.max(22, Math.round(width * 0.018));
     const maxFont = Math.max(minFont, Math.round(Math.min(pixelWidth * 0.095, pixelHeight * 0.34, width * 0.09)));
     for (let fontSize = maxFont; fontSize >= minFont; fontSize -= 2) {
-      const lines = wrapText(text, fontSize, pixelWidth * 0.91, measureText);
+      // Leave room for the outer stroke and shadow so the full caption remains
+      // inside the selected safe area after browser-side compositing.
+      const lines = wrapText(text, fontSize, pixelWidth * 0.82, measureText);
       const lineHeight = Math.round(fontSize * 1.16);
-      if (lines.length <= 4 && lines.length * lineHeight <= pixelHeight * 0.86) {
+      if (lines.length <= 4 && lines.length * lineHeight <= pixelHeight * 0.76) {
         return { area, lines, fontSize, lineHeight, pixelWidth, pixelHeight };
       }
     }
@@ -106,11 +108,14 @@
     const textHeight = best.lines.length * best.lineHeight;
     const textX = Math.round((best.area.x * width) + (best.pixelWidth / 2));
     const textY = Math.round((best.area.y * height) + (best.pixelHeight / 2));
+    const outlinePadding = best.fontSize * 0.16;
+    const shadowPadding = best.fontSize * 0.08;
+    const textPadding = outlinePadding + shadowPadding;
     const textBounds = {
-      x: Math.round(textX - textWidth / 2 - best.fontSize * 0.12),
-      y: Math.round(textY - textHeight / 2 - best.fontSize * 0.12),
-      w: Math.round(textWidth + best.fontSize * 0.24),
-      h: Math.round(textHeight + best.fontSize * 0.24)
+      x: Math.round(textX - textWidth / 2 - textPadding),
+      y: Math.round(textY - textHeight / 2 - textPadding),
+      w: Math.round(textWidth + textPadding * 2),
+      h: Math.round(textHeight + textPadding * 2)
     };
     const normalizedTextBounds = { x: textBounds.x / width, y: textBounds.y / height, w: textBounds.w / width, h: textBounds.h / height };
     return {
@@ -119,7 +124,8 @@
       fontSize: best.fontSize,
       lineHeight: best.lineHeight,
       safeArea: best.area,
-      // The lower third is intentionally re-generated after protected regions are restored.
+      // The existing lower-third visual treatment is intentionally preserved after
+      // protected regions are restored. This does not create a new caption band.
       replacementArea: placement === "bottom-band" ? best.area : null,
       placement,
       usedBottomBandFallback: usedFallback,
@@ -153,7 +159,7 @@
       measureText
     });
     if (placement === "bottom-band") {
-      if (!bottomBandFit) throw new Error("下帯のテロップ領域に文言が収まりません。文言を短くしてください。");
+      if (!bottomBandFit) throw new Error("既存の下帯のテロップ領域に文言が収まりません。文言を短くしてください。");
       bottomBandFit.measureText = measureText;
       return buildLayout(bottomBandFit, requestedText, width, height, blockers, "bottom-band", false);
     }
@@ -174,7 +180,7 @@
       bottomBandFit.measureText = measureText;
       return buildLayout(bottomBandFit, requestedText, width, height, blockers, "bottom-band", true);
     }
-    throw new Error("安全なテロップ領域がありません。下帯にも収まらないため、文言を短くしてください。文言は切らずに停止しました。");
+    throw new Error("安全なテロップ領域がありません。既存の下帯にも収まらないため、文言を短くしてください。文言は切らずに停止しました。");
   }
 
   return { createCaptionLayout, normalizedRect, rectanglesIntersect };

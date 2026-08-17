@@ -26,7 +26,7 @@ test("指定テロップを欠けさせず、保護領域とYouTube表示領域�
   assert.ok(layout.safeArea.y + layout.safeArea.h <= 0.83 || layout.safeArea.x + layout.safeArea.w <= 0.79);
 });
 
-test("保護枠が画像全体を覆っても、下帯を差し替えて文言を欠けさせない", () => {
+test("保護枠が画像全体を覆っても、既存の下帯を活かして文言を欠けさせない", () => {
   const text = "ご視聴ありがとうございました！";
   const layout = createCaptionLayout({
     text,
@@ -45,7 +45,7 @@ test("保護枠が画像全体を覆っても、下帯を差し替えて文言�
   assert.equal(layout.hasCollision, false);
 });
 
-test("下帯にも収まらない文言は切らずにエラーで止める", () => {
+test("既存の下帯にも収まらない文言は切らずにエラーで止める", () => {
   assert.throws(
     () => createCaptionLayout({
       text: "長いテロップを勝手に省略してはいけません".repeat(100),
@@ -56,6 +56,26 @@ test("下帯にも収まらない文言は切らずにエラーで止める", ()
       ],
       measureText,
     }),
-    /下帯にも収まらない/,
+    /既存の下帯にも収まらない/,
   );
+});
+
+test("縁取りと影を含む文字範囲を安全領域内に収める", () => {
+  const layout = createCaptionLayout({
+    text: "全員集合「好きish」収録楽曲全曲ステージパフォーマンス",
+    width: 1536,
+    height: 864,
+    protectedRegions: [
+      { name: "中央", type: "face", shape: "rect", x: 0, y: 0, w: 1, h: 0.65 },
+    ],
+    measureText,
+  });
+
+  const epsilon = 1 / 864;
+  const safe = layout.safeArea;
+  const text = layout.normalizedTextBounds;
+  assert.ok(text.x >= safe.x - epsilon);
+  assert.ok(text.y >= safe.y - epsilon);
+  assert.ok(text.x + text.w <= safe.x + safe.w + epsilon);
+  assert.ok(text.y + text.h <= safe.y + safe.h + epsilon);
 });

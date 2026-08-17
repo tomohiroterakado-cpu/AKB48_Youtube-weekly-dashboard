@@ -63,7 +63,9 @@ test("Images2.0への指示は文字を描かず、安全領域を予約する",
   const prompt = buildImageEditPrompt(production, safeArea);
   assert.match(prompt, /左下の顔/);
   assert.match(prompt, /Do not add, remove, replace, or alter faces/);
-  assert.match(prompt, /Do not render, replace, add, stylize, crop, or alter any Japanese or Latin text/);
+  assert.match(prompt, /Outside the reserved caption-safe area, do not render, replace, add, stylize, crop, or alter any Japanese or Latin text/);
+  assert.match(prompt, /If this area has no original caption panel or band, keep the original background unchanged/);
+  assert.match(prompt, /do not add a banner, panel, empty box, or decorative object/);
   assert.match(prompt, /A browser compositor will place the exact Japanese caption/);
   assert.match(prompt, /x=0\.0500, y=0\.7200, width=0\.6800, height=0\.1800/);
   assert.doesNotMatch(prompt, /コラボウォールアートが大きすぎ！？/);
