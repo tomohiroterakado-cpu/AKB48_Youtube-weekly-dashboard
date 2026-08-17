@@ -894,6 +894,16 @@ h2 {
 .winnerMetrics span { color: var(--muted); font-size: 11px; font-weight: 800; }
 .winnerMetrics strong { overflow-wrap: anywhere; font-size: 16px; }
 .winnerMetrics > div:first-child strong { color: var(--akb-red); font-size: 25px; }
+.winnerClickDesign { margin-top: 14px; padding: 14px; border: 1px solid #e9d7ca; background: #fffdfa; }
+.winnerClickDesignHeader { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.winnerClickDesignHeader span { color: var(--muted); font-size: 11px; font-weight: 800; }
+.winnerClickDesignHeader strong { color: var(--akb-red); font-size: 13px; text-align: right; }
+.hookSequence { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 10px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.hookSequence > div { min-width: 0; padding: 10px 12px 10px 0; }
+.hookSequence > div + div { padding-left: 12px; border-left: 1px solid var(--line); }
+.hookSequence span { display: block; margin-bottom: 5px; color: var(--muted); font-size: 10px; font-weight: 800; }
+.hookSequence strong { display: block; font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
+.winnerClickDesign > p { margin: 10px 0 0; color: var(--ink); font-size: 12px; font-weight: 700; line-height: 1.6; }
 .winnerReason { margin: 14px 0 0; font-size: 14px; font-weight: 700; line-height: 1.7; }
 .prepublishAbPanel { padding: 18px; }
 .prepublishAbPanel .panelHeader { margin-bottom: 10px; }
@@ -957,6 +967,12 @@ h2 {
 .candidateRow.eligible .candidateDecision { border-left-color: var(--green); background: #edf7ef; }
 .candidateDecision p { margin: 7px 0 0; font-size: 12px; line-height: 1.6; }
 .candidateDecision .meta { font-size: 11px; }
+.candidateDecisionStack { display: grid; align-content: start; gap: 8px; }
+.candidateClickDesign { padding: 12px; border-left: 4px solid var(--akb-red); background: #fff; }
+.candidateAngle { display: block; color: var(--akb-red); font-size: 12px; line-height: 1.45; }
+.candidateClickDesign p { margin: 7px 0 0; font-size: 11px; line-height: 1.55; }
+.candidateClickDesign .hookLayer { padding-top: 6px; border-top: 1px solid var(--line); }
+.candidateClickDesign .clickLogic { color: var(--muted); font-weight: 700; }
 .prepublishImprovementList { display: grid; gap: 0; margin: 10px 0 0; padding: 0; list-style: none; counter-reset: improvements; }
 .prepublishImprovementList li { position: relative; padding: 13px 12px 13px 48px; border-top: 1px solid var(--line); font-size: 13px; font-weight: 700; line-height: 1.65; counter-increment: improvements; }
 .prepublishImprovementList li::before { position: absolute; top: 12px; left: 6px; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--akb-red); color: white; content: counter(improvements); font-size: 11px; font-weight: 900; }
@@ -981,6 +997,11 @@ h2 {
   .winnerMetrics, .thumbnailFitGrid { grid-template-columns: 1fr; }
   .winnerMetrics > div, .winnerMetrics > div + div, .thumbnailFitGrid > div, .thumbnailFitGrid > div + div { padding: 11px 0; border-left: 0; border-top: 1px solid var(--line); }
   .winnerMetrics > div:first-child, .thumbnailFitGrid > div:first-child { border-top: 0; }
+  .winnerClickDesignHeader { align-items: flex-start; flex-direction: column; }
+  .winnerClickDesignHeader strong { text-align: left; }
+  .hookSequence { grid-template-columns: 1fr; }
+  .hookSequence > div, .hookSequence > div + div { padding: 9px 0; border-left: 0; border-top: 1px solid var(--line); }
+  .hookSequence > div:first-child { border-top: 0; }
   .abTestRow { grid-template-columns: 30px minmax(0, 1fr); }
   .abScore { grid-column: 2; }
   .candidateTableHeader { display: none; }

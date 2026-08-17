@@ -41,7 +41,7 @@ function previewOutputSize(outputSize) {
   return { width: align(rawWidth), height: align(rawHeight) };
 }
 
-async function generateThumbnailPreview({ review, candidateId, originalImage, outputSize }) {
+async function generateThumbnailPreview({ review, candidateId, originalImage, outputSize, captionSafeArea }) {
   const production = selectThumbnailCandidate(review, candidateId);
   const fingerprint = generationFingerprint({ review, candidateId: `preview-${candidateId}`, originalImage });
   thumbnailGenerationGuard.reserve(fingerprint);
@@ -50,7 +50,8 @@ async function generateThumbnailPreview({ review, candidateId, originalImage, ou
       originalImage,
       production,
       outputSize: previewOutputSize(outputSize),
-      quality: "low"
+      quality: "low",
+      captionSafeArea
     });
   } finally {
     thumbnailGenerationGuard.release(fingerprint);
@@ -281,7 +282,8 @@ async function handleApi(req, res, pathname) {
       review,
       candidateId: production.selectedCandidate.id,
       originalImage: body.originalImage,
-      outputSize: body.outputSize
+      outputSize: body.outputSize,
+      captionSafeArea: body.captionSafeArea
     })));
     const previews = results.flatMap((result, index) => result.status === "fulfilled"
       ? [{ candidateId: productions[index].selectedCandidate.id, ...result.value }]
@@ -320,7 +322,7 @@ async function handleApi(req, res, pathname) {
     try {
       await repository.mutate((state) => reservePersistentGeneration(state, fingerprint));
       persistentReservation = true;
-      const generated = await generateImages2Design({ originalImage: body.originalImage, production, outputSize: body.outputSize });
+      const generated = await generateImages2Design({ originalImage: body.originalImage, production, outputSize: body.outputSize, captionSafeArea: body.captionSafeArea });
       externalGenerationSucceeded = true;
       await repository.mutate((state) => completePersistentGeneration(state, fingerprint));
       return json(res, 200, generated);

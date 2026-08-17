@@ -10,6 +10,7 @@ const PREPUBLISH_TEXT_FIELDS = [
   "prepublishSeriesName",
   "prepublishEpisode",
   "prepublishTargetAudience",
+  "prepublishProofPoints",
   "prepublishCurrentTitle"
 ];
 
@@ -165,7 +166,7 @@ function renderAbTests(items) {
     const copy = row.querySelector(".abTestCopy");
     copy.append(
       prepublishEl("h3", "", item.title),
-      prepublishEl("p", "meta", `CTR予想 ${item.ctrPrediction} / ${item.target}`),
+      prepublishEl("p", "meta", `訴求軸 ${item.angle} / CTR予想 ${item.ctrPrediction} / ${item.target}`),
       prepublishEl("p", "abHypothesis", item.hypothesis)
     );
     list.appendChild(row);
@@ -185,7 +186,7 @@ function renderTopFive(items) {
     const copy = row.querySelector(".topFiveCopy");
     copy.append(
       prepublishEl("h3", "", item.title),
-      prepublishEl("p", "meta", `元案 ${item.sourceRank}位から再設計`),
+      prepublishEl("p", "meta", `${item.angle} / 元案 ${item.sourceRank}位から再設計`),
       prepublishEl("p", "", item.refinement)
     );
     list.appendChild(row);
@@ -230,12 +231,22 @@ function renderCandidate(candidate) {
     reviews.appendChild(review);
   });
   const decision = prepublishEl("div", "candidateDecision");
+  const clickDesign = prepublishEl("div", "candidateClickDesign");
+  clickDesign.append(
+    prepublishEl("strong", "candidateAngle", candidate.angle),
+    prepublishEl("p", "hookLayer", `実績・事実｜${candidate.hookStructure.proof}`),
+    prepublishEl("p", "hookLayer", `感情｜${candidate.hookStructure.emotion}`),
+    prepublishEl("p", "hookLayer", `内容・視聴価値｜${candidate.hookStructure.content}`),
+    prepublishEl("p", "clickLogic", candidate.clickLogic)
+  );
   decision.append(
     prepublishEl("strong", "", candidate.adoptionEligible ? "採用候補" : "改善が必要"),
     prepublishEl("p", "", candidate.adoptionReason),
     prepublishEl("p", "meta", `想定ターゲット: ${candidate.target}`)
   );
-  body.append(breakdown, reviews, decision);
+  const decisionStack = prepublishEl("div", "candidateDecisionStack");
+  decisionStack.append(clickDesign, decision);
+  body.append(breakdown, reviews, decisionStack);
   details.appendChild(body);
   return details;
 }
@@ -253,6 +264,11 @@ function renderPrepublishResults(result) {
   document.getElementById("prepublishWinnerScore").textContent = `${winner.score}点`;
   document.getElementById("prepublishWinnerCtr").textContent = winner.ctrPrediction;
   document.getElementById("prepublishWinnerTarget").textContent = winner.target;
+  document.getElementById("prepublishWinnerAngle").textContent = winner.angle;
+  document.getElementById("prepublishWinnerProof").textContent = winner.hookStructure.proof;
+  document.getElementById("prepublishWinnerEmotion").textContent = winner.hookStructure.emotion;
+  document.getElementById("prepublishWinnerContent").textContent = winner.hookStructure.content;
+  document.getElementById("prepublishWinnerClickLogic").textContent = winner.clickLogic;
   document.getElementById("prepublishWinnerReason").textContent = winner.adoptionReason;
 
   renderAbTests(result.abTests || []);
@@ -307,6 +323,7 @@ async function generatePrepublishReviewFromForm(event) {
       seriesName: document.getElementById("prepublishSeriesName").value,
       episode: document.getElementById("prepublishEpisode").value,
       targetAudience: document.getElementById("prepublishTargetAudience").value,
+      proofPoints: document.getElementById("prepublishProofPoints").value,
       currentTitle: document.getElementById("prepublishCurrentTitle").value
     };
     const result = await api("/api/prepublish-reviews/generate", {

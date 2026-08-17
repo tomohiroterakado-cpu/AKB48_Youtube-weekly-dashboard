@@ -6,7 +6,7 @@
     <title>AKB YouTube AI Director</title>
     <link rel="icon" type="image/png" href="/assets/su-channel-icon.png?v=2" />
     <link rel="apple-touch-icon" href="/assets/su-channel-icon.png?v=2" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=20260802-multi-angle" />
   </head>
   <body>
     <header class="directorHeader">
@@ -189,6 +189,10 @@
               <span>想定ターゲット</span>
               <input id="prepublishTargetAudience" required placeholder="AKBファン、ライト層、女性、おすすめ新規など">
             </label>
+            <label class="prepublishField">
+              <span>実績・話題性（任意）</span>
+              <input id="prepublishProofPoints" placeholder="例：MV600万回再生、初公開、選抜16人">
+            </label>
             <label class="prepublishField prepublishFieldWide">
               <span>現在のタイトル案（任意）</span>
               <input id="prepublishCurrentTitle" placeholder="すでに案があれば入力">
@@ -220,6 +224,15 @@
               <div><span>評価点</span><strong id="prepublishWinnerScore"></strong></div>
               <div><span>CTR予想</span><strong id="prepublishWinnerCtr"></strong></div>
               <div><span>ターゲット</span><strong id="prepublishWinnerTarget"></strong></div>
+            </div>
+            <div class="winnerClickDesign">
+              <div class="winnerClickDesignHeader"><span>多角的クリック設計</span><strong id="prepublishWinnerAngle"></strong></div>
+              <div class="hookSequence" aria-label="タイトルのクリック構造">
+                <div><span>1　実績・事実</span><strong id="prepublishWinnerProof"></strong></div>
+                <div><span>2　感情</span><strong id="prepublishWinnerEmotion"></strong></div>
+                <div><span>3　内容・視聴価値</span><strong id="prepublishWinnerContent"></strong></div>
+              </div>
+              <p id="prepublishWinnerClickLogic"></p>
             </div>
             <p id="prepublishWinnerReason" class="winnerReason"></p>
           </article>
@@ -261,7 +274,7 @@
 
         <section class="directorPanel titleCandidatesPanel">
           <div class="panelHeader">
-            <div><span class="sectionLabel">全案評価</span><h2>タイトル候補30案</h2><p class="meta">95点以上だけを採用候補として表示します。各行を開くと6視点の結論を確認できます。</p></div>
+            <div><span class="sectionLabel">全案評価</span><h2>タイトル候補30案</h2><p class="meta">7つの訴求軸に分散し、95点以上だけを採用候補として表示します。各行を開くとクリック構造と6視点の結論を確認できます。</p></div>
             <span id="prepublishEligibleCount" class="eligibleCount"></span>
           </div>
           <div class="candidateTableHeader" aria-hidden="true">
@@ -455,7 +468,8 @@
     <script src="./data/latest.js"></script>
     <script src="./app.js"></script>
     <script src="./director.js"></script>
-    <script src="./prepublish.js?v=20260731"></script>
-    <script src="./thumbnail.js?v=20260801-preview-compare"></script>
+    <script src="./prepublish.js?v=20260802-multi-angle"></script>
+    <script src="./thumbnail-caption-layout.js?v=20260817-exact-caption"></script>
+    <script src="./thumbnail.js?v=20260817-exact-caption"></script>
   </body>
 </html>

@@ -9,6 +9,8 @@ const thumbnailState = {
   previewImages: {},
   protectedRegions: [],
   protectionReport: null,
+  captionLayout: null,
+  captionReport: null,
   drawingShape: "ellipse",
   generatedImageDataUrl: "",
   finalImageDataUrl: "",
@@ -61,6 +63,8 @@ function renderThumbnailRegions() {
     remove.type = "button";
     remove.addEventListener("click", () => {
       thumbnailState.protectedRegions.splice(index, 1);
+      thumbnailState.captionLayout = null;
+      thumbnailState.captionReport = null;
       renderThumbnailRegions();
     });
     row.appendChild(remove);
@@ -113,7 +117,11 @@ function bindThumbnailProtectionDrawing() {
     draft.remove();
     if (w > 0.03 && h > 0.03) {
       const label = prompt("保護する対象を入力してください（例：中央の顔、右上ロゴ）", "顔");
-      if (label) thumbnailState.protectedRegions.push({ name: label, type: /ロゴ|logo/i.test(label) ? "logo" : "face", shape: thumbnailState.drawingShape, x, y, w, h });
+      if (label) {
+        thumbnailState.protectedRegions.push({ name: label, type: /ロゴ|logo/i.test(label) ? "logo" : "face", shape: thumbnailState.drawingShape, x, y, w, h });
+        thumbnailState.captionLayout = null;
+        thumbnailState.captionReport = null;
+      }
     }
     origin = null;
     draft = null;
@@ -132,6 +140,8 @@ function resetThumbnailResult() {
   thumbnailState.generatedImageDataUrl = "";
   thumbnailState.finalImageDataUrl = "";
   thumbnailState.protectionReport = null;
+  thumbnailState.captionLayout = null;
+  thumbnailState.captionReport = null;
   document.getElementById("thumbnailCandidateRail").replaceChildren();
   document.getElementById("thumbnailPreviewControls").hidden = true;
   document.getElementById("thumbnailQualityList").replaceChildren();
@@ -309,6 +319,7 @@ async function generateThumbnailPreviews() {
     return;
   }
   try {
+    const captionLayout = getThumbnailCaptionLayoutOrThrow();
     generate.disabled = true;
     result.className = "infoItem";
     result.textContent = `${candidateIds.length}案を低画質で作成しています。最終の高画質生成はまだ実行しません...`;
@@ -320,11 +331,12 @@ async function generateThumbnailPreviews() {
         reviewToken: thumbnailState.reviewToken,
         previewMode: thumbnailState.previewMode,
         candidateIds,
-        outputSize: thumbnailState.sourceSize
+        outputSize: thumbnailState.sourceSize,
+        captionSafeArea: captionLayout.safeArea
       })
     });
     for (const preview of payload.previews || []) {
-      thumbnailState.previewImages[preview.candidateId] = await compositeProtectedRegions(preview.imageDataUrl);
+      thumbnailState.previewImages[preview.candidateId] = await composeThumbnailWithExactCaption(preview.imageDataUrl, captionLayout);
     }
     thumbnailState.previewCandidateIds = candidateIds;
     renderThumbnailCandidates();
@@ -352,7 +364,7 @@ async function selectThumbnailCandidate(candidateId) {
     thumbnailState.selectedCandidateId = candidateId;
     document.getElementById("thumbnailGenerate").disabled = false;
     result.className = "infoItem";
-    result.textContent = `${production.selectedCandidate.name}を選択しました。指定した保護範囲は生成後に境界をなじませて元画像から前面復帰します。`;
+    result.textContent = `${production.selectedCandidate.name}を選択しました。保護範囲を避け、指定したテロップ文言を切らずに正確に合成します。`;
     renderThumbnailCandidates();
   } catch (error) {
     result.className = "errorItem";
@@ -461,77 +473,88 @@ async function compositeProtectedRegions(generatedImageDataUrl) {
   return canvas.toDataURL("image/png");
 }
 
-function wrapTextForThumbnail(context, text, maxWidth) {
-  const lines = [];
-  let line = "";
-  for (const character of Array.from(String(text || ""))) {
-    const candidate = line + character;
-    if (line && context.measureText(candidate).width > maxWidth) {
-      lines.push(line);
-      line = character;
-    } else {
-      line = candidate;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
-}
-
-function textOnlyTelopLayout(context, text, width, height) {
-  const maxWidth = width * 0.88;
-  const maxFont = Math.round(Math.min(width * 0.067, height * 0.105));
-  const minFont = Math.max(28, Math.round(width * 0.028));
-  for (let size = maxFont; size >= minFont; size -= 2) {
-    context.font = `900 ${size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
-    const lines = wrapTextForThumbnail(context, text, maxWidth);
-    if (lines.length <= 2) return { size, lines };
-  }
-  context.font = `900 ${minFont}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
-  return { size: minFont, lines: wrapTextForThumbnail(context, text, maxWidth) };
-}
-
-async function createTextOnlyThumbnail() {
-  const original = await thumbnailImage(thumbnailState.imageDataUrl);
-  const canvas = document.createElement("canvas");
-  canvas.width = thumbnailState.sourceSize?.width || original.naturalWidth;
-  canvas.height = thumbnailState.sourceSize?.height || original.naturalHeight;
-  const context = canvas.getContext("2d");
-  context.drawImage(original, 0, 0, original.naturalWidth, original.naturalHeight, 0, 0, canvas.width, canvas.height);
-
+function thumbnailCaptionText() {
   const text = document.getElementById("thumbnailCopy").value.trim();
-  const layout = textOnlyTelopLayout(context, text, canvas.width, canvas.height);
-  const lineHeight = Math.round(layout.size * 1.15);
-  const panelHeight = Math.max(Math.round(canvas.height * 0.18), lineHeight * layout.lines.length + Math.round(canvas.height * 0.075));
-  const panelY = canvas.height - panelHeight - Math.round(canvas.height * 0.035);
-  const panelX = Math.round(canvas.width * 0.035);
-  const panelWidth = canvas.width - panelX * 2;
+  if (!text) throw new Error("変更後のテロップ文言を入力してください。");
+  return text;
+}
 
+function getThumbnailCaptionLayoutOrThrow() {
+  if (!window.ThumbnailCaptionLayout?.createCaptionLayout) {
+    throw new Error("テロップの安全領域を計算できませんでした。ページを再読み込みしてください。");
+  }
+  if (!thumbnailState.sourceSize?.width || !thumbnailState.sourceSize?.height) {
+    throw new Error("元サムネイルを読み込んでください。");
+  }
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  const layout = window.ThumbnailCaptionLayout.createCaptionLayout({
+    text: thumbnailCaptionText(),
+    width: thumbnailState.sourceSize.width,
+    height: thumbnailState.sourceSize.height,
+    protectedRegions: thumbnailState.protectedRegions,
+    measureText: (line, fontSize) => {
+      context.font = `900 ${fontSize}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
+      return context.measureText(line).width;
+    }
+  });
+  thumbnailState.captionLayout = layout;
+  return layout;
+}
+
+function drawExactThumbnailCaption(context, layout) {
+  const { textBounds, fontSize, lineHeight, lines } = layout;
+  const centerX = textBounds.x + textBounds.w / 2;
+  const firstY = textBounds.y + (textBounds.h - lines.length * lineHeight) / 2 + lineHeight / 2;
   context.save();
-  const panelGradient = context.createLinearGradient(0, panelY, 0, panelY + panelHeight);
-  panelGradient.addColorStop(0, "rgba(35, 23, 29, 0.86)");
-  panelGradient.addColorStop(1, "rgba(18, 14, 18, 0.92)");
-  context.fillStyle = panelGradient;
-  drawRoundedRect(context, panelX, panelY, panelWidth, panelHeight, Math.round(canvas.height * 0.025));
-  context.fill();
-  context.font = `900 ${layout.size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
+  context.font = `900 ${fontSize}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.lineJoin = "round";
-  context.lineWidth = Math.max(3, Math.round(layout.size * 0.075));
-  context.strokeStyle = "rgba(25, 12, 17, 0.92)";
-  context.fillStyle = "#fffaf2";
-  context.shadowColor = "rgba(0, 0, 0, 0.5)";
-  context.shadowBlur = Math.max(4, Math.round(layout.size * 0.12));
-  const textCenterY = panelY + panelHeight / 2;
-  layout.lines.forEach((line, index) => {
-    const y = textCenterY + (index - (layout.lines.length - 1) / 2) * lineHeight;
-    context.strokeText(line, canvas.width / 2, y);
-    context.fillText(line, canvas.width / 2, y);
-  });
+  context.lineWidth = Math.max(3, Math.round(fontSize * 0.075));
+  context.strokeStyle = "rgba(67, 18, 48, 0.92)";
+  context.shadowColor = "rgba(34, 14, 25, 0.48)";
+  context.shadowBlur = Math.max(3, Math.round(fontSize * 0.11));
+  context.shadowOffsetY = Math.max(1, Math.round(fontSize * 0.045));
+  lines.forEach((line, index) => context.strokeText(line, centerX, firstY + index * lineHeight));
+  const fill = context.createLinearGradient(0, textBounds.y, 0, textBounds.y + textBounds.h);
+  fill.addColorStop(0, "#ffffff");
+  fill.addColorStop(0.52, "#fff6f7");
+  fill.addColorStop(1, "#ffd6e2");
+  context.fillStyle = fill;
+  lines.forEach((line, index) => context.fillText(line, centerX, firstY + index * lineHeight));
   context.restore();
+}
 
-  thumbnailState.protectedRegions.forEach((region) => compositeProtectedRegion(context, original, region, canvas));
+async function composeThumbnailWithExactCaption(generatedImageDataUrl, suppliedLayout) {
+  const [original, generated] = await Promise.all([thumbnailImage(thumbnailState.imageDataUrl), thumbnailImage(generatedImageDataUrl)]);
+  const canvas = document.createElement("canvas");
+  canvas.width = thumbnailState.sourceSize?.width || generated.naturalWidth;
+  canvas.height = thumbnailState.sourceSize?.height || generated.naturalHeight;
+  const context = canvas.getContext("2d");
+  context.drawImage(generated, 0, 0, generated.naturalWidth, generated.naturalHeight, 0, 0, canvas.width, canvas.height);
+  const restored = thumbnailState.protectedRegions.filter((region) => compositeProtectedRegion(context, original, region, canvas));
+  const layout = suppliedLayout || getThumbnailCaptionLayoutOrThrow();
+  drawExactThumbnailCaption(context, layout);
+  thumbnailState.protectionReport = {
+    restoredCount: restored.length,
+    restoredFaceCount: restored.filter((region) => region.type === "face").length,
+    restoredLogoCount: restored.filter((region) => region.type === "logo").length
+  };
+  thumbnailState.captionReport = {
+    requestedCopy: layout.text,
+    renderedCopy: layout.lines.join(""),
+    fullText: layout.lines.join("") === layout.text,
+    hasCollision: layout.hasCollision,
+    mobileReadable: layout.mobileReadable,
+    youtubeUiSafe: layout.youtubeUiSafe,
+    lineCount: layout.lines.length
+  };
   return canvas.toDataURL("image/png");
+}
+
+async function createTextOnlyThumbnail() {
+  return composeThumbnailWithExactCaption(thumbnailState.imageDataUrl);
 }
 
 function showThumbnailFinal(imageDataUrl, alt) {
@@ -560,6 +583,11 @@ function renderThumbnailQuality() {
     const row = thumbnailEl("label", "thumbnailQualityItem");
     const input = document.createElement("input"); input.type = "checkbox"; input.name = key;
     if (key === "faceLock" && thumbnailState.protectionReport?.restoredFaceCount > 0) input.checked = true;
+    if (key === "logoLock" && thumbnailState.protectionReport?.restoredLogoCount > 0) input.checked = true;
+    if (key === "textAccuracy" && thumbnailState.captionReport?.fullText) input.checked = true;
+    if (key === "faceOverlap" && thumbnailState.captionReport && !thumbnailState.captionReport.hasCollision) input.checked = true;
+    if (key === "mobileReadability" && thumbnailState.captionReport?.mobileReadable) input.checked = true;
+    if (key === "youtubeUiSafety" && thumbnailState.captionReport?.youtubeUiSafe) input.checked = true;
     row.append(input, thumbnailEl("span", "", label));
     list.appendChild(row);
   });
@@ -575,7 +603,8 @@ async function restoreProtectedRegionsWithoutGeneration() {
   try {
     result.className = "infoItem";
     result.textContent = "指定した保護範囲を元画像から完全に再復元しています。画像生成は行いません...";
-    showThumbnailFinal(await compositeProtectedRegions(thumbnailState.finalImageDataUrl), "保護範囲を元画像から再復元したサムネイル");
+    const source = thumbnailState.generatedImageDataUrl || thumbnailState.imageDataUrl;
+    showThumbnailFinal(await composeThumbnailWithExactCaption(source), "保護範囲を元画像から再復元したサムネイル");
     result.className = "infoItem";
     result.textContent = "指定した保護範囲を元画像から完全に再復元しました。追加料金はかかりません。顔・表情の項目を確認して、もう一度品質を判定してください。";
   } catch (error) {
@@ -589,18 +618,25 @@ async function generateThumbnail() {
   const result = document.getElementById("thumbnailStatus");
   const generate = document.getElementById("thumbnailGenerate");
   try {
+    const captionLayout = getThumbnailCaptionLayoutOrThrow();
     generate.disabled = true;
     result.className = "infoItem";
     result.textContent = "選択案をImages2.0で高品質化しています。指定した保護範囲は直後に元画像へ戻します...";
     const generated = await api("/api/thumbnails/generate", {
       method: "POST",
       headers: adminHeaders(),
-      body: JSON.stringify({ originalImage: thumbnailState.imageDataUrl, reviewToken: thumbnailState.reviewToken, candidateId: thumbnailState.selectedCandidateId, outputSize: thumbnailState.sourceSize })
+      body: JSON.stringify({
+        originalImage: thumbnailState.imageDataUrl,
+        reviewToken: thumbnailState.reviewToken,
+        candidateId: thumbnailState.selectedCandidateId,
+        outputSize: thumbnailState.sourceSize,
+        captionSafeArea: captionLayout.safeArea
+      })
     });
     thumbnailState.generatedImageDataUrl = generated.imageDataUrl;
-    showThumbnailFinal(await compositeProtectedRegions(generated.imageDataUrl), "AI生成と保護領域合成後のサムネイル");
+    showThumbnailFinal(await composeThumbnailWithExactCaption(generated.imageDataUrl, captionLayout), "AI生成と保護領域合成後のサムネイル");
     result.className = "infoItem";
-    result.textContent = "合成が完了しました。最終品質を確認してください。";
+    result.textContent = "合成が完了しました。指定テロップは保護範囲と右下表示を避け、切らずに合成しています。最終品質を確認してください。";
   } catch (error) {
     if (error.status === 409) {
       renderThumbnailRegenerationOption(error.message);

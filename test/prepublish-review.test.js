@@ -2,6 +2,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   REVIEW_PERSPECTIVES,
+  TITLE_ANGLES,
+  buildPrompt,
   generatePrepublishReview,
   learningRecord,
   normalizeReview,
@@ -11,12 +13,23 @@ const {
 const { emptyState } = require("../lib/repository");
 
 const pixel = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+X8WqAAAAAElFTkSuQmCC";
+const anglePlan = [
+  ...Array(6).fill(TITLE_ANGLES[0]),
+  ...TITLE_ANGLES.slice(1).flatMap((angle) => Array(4).fill(angle))
+];
 
 function candidate(index, total = 95) {
   return {
     title: `候補タイトル${index}`,
     ctrPrediction: "6.5〜8.0%",
     target: "AKBファンとライト層",
+    angle: anglePlan[index - 1],
+    hookStructure: {
+      proof: "選抜16人",
+      emotion: "素顔が尊い",
+      content: "完成までに密着"
+    },
+    clickLogic: "客観事実から感情と内容へつなげる",
     adoptionReason: "内容と感情のバランス",
     breakdown: {
       ctr: total - 55,
@@ -33,10 +46,19 @@ function candidate(index, total = 95) {
 function rawReview() {
   return {
     candidates: Array.from({ length: 30 }, (_, index) => candidate(index + 1, 95 - (index % 3))),
-    topFive: Array.from({ length: 5 }, (_, index) => ({ sourceRank: index + 1, title: `改善${index + 1}`, score: 96, refinement: "改善理由" })),
-    abTests: Array.from({ length: 2 }, (_, index) => ({ title: `AB${index + 1}`, score: 97 - index, ctrPrediction: "7.0〜9.0%", target: "新規", hypothesis: "仮説" })),
+    topFive: Array.from({ length: 5 }, (_, index) => ({ sourceRank: index + 1, title: `改善${index + 1}`, score: 96, angle: TITLE_ANGLES[index], refinement: "改善理由" })),
+    abTests: Array.from({ length: 2 }, (_, index) => ({ title: `AB${index + 1}`, score: 97 - index, ctrPrediction: "7.0〜9.0%", target: "新規", angle: TITLE_ANGLES[index], hypothesis: "仮説" })),
     thumbnailFit: { score: 92, overlapLevel: "低", duplicateElements: [], synergy: "役割分担", improvement: "文字量を減らす" },
-    finalRecommendation: { title: "最終タイトル", score: 97, ctrPrediction: "7.5〜9.5%", target: "新規とファン", adoptionReason: "最も強い" },
+    finalRecommendation: {
+      title: "最終タイトル",
+      score: 97,
+      ctrPrediction: "7.5〜9.5%",
+      target: "新規とファン",
+      angle: TITLE_ANGLES[0],
+      hookStructure: { proof: "MV600万回再生", emotion: "カワイイが渋滞", content: "完成までに密着" },
+      clickLogic: "実績から感情、内容説明へ進む",
+      adoptionReason: "最も強い"
+    },
     youtubeDescription: "概要欄",
     xPost: "告知文",
     improvements: ["改善1", "改善2", "改善3"]
@@ -51,10 +73,12 @@ test("input requires a valid thumbnail and core planning fields", () => {
     cast: "出演者",
     highlights: "見どころ",
     seriesName: "シリーズ",
-    targetAudience: "女性ライト層"
+    targetAudience: "女性ライト層",
+    proofPoints: "MV600万回再生"
   });
   assert.equal(input.channel, "AKBの素を出すちゃんねる");
   assert.equal(input.thumbnailMimeType, "image/png");
+  assert.equal(input.proofPoints, "MV600万回再生");
 });
 
 test("normalization recalculates weighted totals and marks 95+ candidates", () => {
@@ -64,6 +88,32 @@ test("normalization recalculates weighted totals and marks 95+ candidates", () =
   assert.equal(result.candidates[0].adoptionEligible, true);
   assert.equal(result.candidates.at(-1).adoptionEligible, false);
   assert.deepEqual(result.candidates[0].perspectives.map((item) => item.label), REVIEW_PERSPECTIVES);
+  assert.equal(result.candidates[0].hookStructure.proof, "選抜16人");
+  assert.ok(TITLE_ANGLES.includes(result.candidates[0].angle));
+});
+
+test("normalization rejects a 30-title set without the required angle diversity", () => {
+  const review = rawReview();
+  review.candidates[0].angle = TITLE_ANGLES[1];
+  assert.throws(() => normalizeReview(review), /訴求軸が指定配分を満たしていません/);
+});
+
+test("prompt enforces multi-angle distribution and factual three-layer hooks", () => {
+  const prompt = buildPrompt({
+    channel: "AKBの素を出すちゃんねる",
+    videoContent: "新曲メイキング",
+    cast: "選抜16人",
+    highlights: "撮影の裏側",
+    seriesName: "好きish",
+    episode: "",
+    targetAudience: "一般層",
+    proofPoints: "MV600万回再生",
+    currentTitle: ""
+  });
+  assert.match(prompt, /実績・事実 → 感情 → 内容説明/);
+  assert.match(prompt, /三層フック6案/);
+  assert.match(prompt, /MV600万回再生/);
+  assert.match(prompt, /推測・捏造しない/);
 });
 
 test("OpenAI response is normalized and includes a learning id", async () => {
