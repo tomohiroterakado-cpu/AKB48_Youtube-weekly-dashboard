@@ -145,6 +145,30 @@ async function readSelectedCsv() {
   return payload;
 }
 
+function openNativeDatePicker(input) {
+  if (!input) return;
+
+  try {
+    if (typeof input.showPicker === "function") {
+      input.showPicker();
+      return;
+    }
+  } catch {
+    // Some browsers restrict showPicker; focus and click keep the date field usable.
+  }
+
+  input.focus({ preventScroll: true });
+  input.click();
+}
+
+function setUpDatePickers() {
+  document.querySelectorAll("[data-date-picker-for]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openNativeDatePicker(document.getElementById(button.dataset.datePickerFor));
+    });
+  });
+}
+
 async function previewUpload() {
   if (!requireAdmin()) return;
   const result = document.getElementById("importResult");
@@ -619,6 +643,7 @@ document.getElementById("adminLoginForm").addEventListener("submit", async (even
     error.hidden = false;
   }
 });
+setUpDatePickers();
 window.addEventListener("hashchange", () => showRoute(location.hash.slice(1)));
 updateAdminControls();
 showRoute(location.hash.slice(1) || "home");

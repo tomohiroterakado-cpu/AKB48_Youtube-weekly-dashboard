@@ -78,6 +78,9 @@ body {
 .infoItem { border-left-color: var(--teal); background: #eefafa; }
 .formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .formGrid label, .reviewField, .policyControl { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.dateInputControl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.dateInputControl input[type="date"] { min-width: 0; cursor: pointer; }
+.datePickerButton { min-height: 42px; white-space: nowrap; }
 input, select, textarea { width: 100%; min-height: 42px; padding: 9px 10px; border: 1px solid #cfc5bf; border-radius: 6px; background: white; color: var(--ink); font: inherit; }
 textarea { min-height: 84px; resize: vertical; }
 .fileDrop { display: grid; place-items: center; min-height: 170px; margin: 18px 0; padding: 24px; border: 2px dashed #cfc5bf; border-radius: 8px; background: rgba(255,255,255,.6); cursor: pointer; text-align: center; }
@@ -167,6 +170,8 @@ textarea { min-height: 84px; resize: vertical; }
   .directorPage { width: min(100% - 20px, 1160px); padding-top: 24px; }
   .directorPageHeader { align-items: flex-start; flex-direction: column; }
   .workflowGrid, .formGrid, .fileDropGrid, .reviewFieldGrid, .resultGrid, .factGrid, .masterSearchControls, .masterSearchSummary { grid-template-columns: 1fr; }
+  .dateInputControl { grid-template-columns: 1fr; }
+  .datePickerButton { width: 100%; }
   .reviewHeading { grid-template-columns: 22px 1fr; }
   .reviewThumb { grid-column: 2; width: 100%; }
 }
