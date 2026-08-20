@@ -1,16 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { createThumbnailReview, selectThumbnailCandidate, selectThumbnailPreviewCandidates, selectAllThumbnailPreviewCandidates, assessThumbnailQuality } = require("../lib/thumbnail-workflow");
-const {
-  MAX_SOURCE_IMAGE_BYTES,
-  MIN_IMAGE_PIXEL_BUDGET,
-  dataUrlToBlob,
-  buildImageEditPrompt,
-  generateImages2Design,
-  normalizeCaptionSafeArea,
-  normalizedOutputSize,
-  normalizedQuality,
-} = require("../lib/images2-client");
+const { MAX_SOURCE_IMAGE_BYTES, MIN_IMAGE_PIXEL_BUDGET, dataUrlToBlob, buildImageEditPrompt, generateImages2Design, normalizedOutputSize, normalizedQuality } = require("../lib/images2-client");
 
 const input = {
   jobId: "kawasaki-brave-thunders-wallart",
@@ -57,30 +48,13 @@ test("顔・日本語・顔被りに問題があれば完成を止める", () =>
   assert.deepEqual(quality.fallbacks, ["restore_original_faces", "photoshop_text", "reposition_telop"]);
 });
 
-test("Images2.0への指示は文字を描かず、安全領域を予約する", () => {
+test("Images2.0への指示はテロップだけを変え、保護対象を明示する", () => {
   const production = selectThumbnailCandidate(createThumbnailReview(input), "A");
-  const safeArea = normalizeCaptionSafeArea({ x: 0.05, y: 0.72, w: 0.68, h: 0.18 });
-  const prompt = buildImageEditPrompt(production, safeArea);
+  const prompt = buildImageEditPrompt(production);
+  assert.match(prompt, /コラボウォールアートが大きすぎ！？/);
   assert.match(prompt, /左下の顔/);
   assert.match(prompt, /Do not add, remove, replace, or alter faces/);
-  assert.match(prompt, /Outside the reserved caption-safe area, do not render, replace, add, stylize, crop, or alter any Japanese or Latin text/);
-  assert.match(prompt, /If this area has no original caption panel or band, keep the original background unchanged/);
-  assert.match(prompt, /do not add a banner, panel, empty box, or decorative object/);
-  assert.match(prompt, /A browser compositor will place the exact Japanese caption/);
-  assert.match(prompt, /x=0\.0500, y=0\.7200, width=0\.6800, height=0\.1800/);
-  assert.doesNotMatch(prompt, /コラボウォールアートが大きすぎ！？/);
   assert.match(prompt, /one tone calmer than a flashy gaming thumbnail/);
-});
-
-test("テロップ安全領域は正規化済みの範囲だけ受け付ける", () => {
-  assert.deepEqual(
-    normalizeCaptionSafeArea({ x: 0.05, y: 0.72, w: 0.68, h: 0.18 }),
-    { x: 0.05, y: 0.72, w: 0.68, h: 0.18 },
-  );
-  assert.throws(
-    () => normalizeCaptionSafeArea({ x: 0.8, y: 0.72, w: 0.4, h: 0.18 }),
-    /画像の範囲外/,
-  );
 });
 
 test("画像生成APIは画面側の制限を回避した8MB超の画像を受け付けない", () => {

@@ -9,9 +9,6 @@ const thumbnailState = {
   previewImages: {},
   protectedRegions: [],
   protectionReport: null,
-  captionLayout: null,
-  captionReport: null,
-  captionPlacement: "auto",
   drawingShape: "ellipse",
   generatedImageDataUrl: "",
   finalImageDataUrl: "",
@@ -64,8 +61,6 @@ function renderThumbnailRegions() {
     remove.type = "button";
     remove.addEventListener("click", () => {
       thumbnailState.protectedRegions.splice(index, 1);
-      thumbnailState.captionLayout = null;
-      thumbnailState.captionReport = null;
       renderThumbnailRegions();
     });
     row.appendChild(remove);
@@ -81,22 +76,6 @@ function setThumbnailDrawingShape(shape) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
-}
-
-function setThumbnailCaptionPlacement(placement) {
-  thumbnailState.captionPlacement = placement === "bottom-band" ? "bottom-band" : "auto";
-  thumbnailState.captionLayout = null;
-  thumbnailState.captionReport = null;
-  document.querySelectorAll("[data-thumbnail-caption-placement]").forEach((button) => {
-    const active = button.dataset.thumbnailCaptionPlacement === thumbnailState.captionPlacement;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-pressed", String(active));
-  });
-  const hint = document.getElementById("thumbnailCaptionPlacementHint");
-  if (!hint) return;
-  hint.textContent = thumbnailState.captionPlacement === "bottom-band"
-    ? "元画像に下帯・装飾がある場合だけ、その意匠を活かして文言を差し替えます。下帯がない画像には新たに追加しません。"
-    : "空き領域を自動で探します。既存の下帯・装飾がある場合だけ活かし、ない画像には帯を追加せず文言を切らずに配置します。";
 }
 
 function bindThumbnailProtectionDrawing() {
@@ -134,11 +113,7 @@ function bindThumbnailProtectionDrawing() {
     draft.remove();
     if (w > 0.03 && h > 0.03) {
       const label = prompt("保護する対象を入力してください（例：中央の顔、右上ロゴ）", "顔");
-      if (label) {
-        thumbnailState.protectedRegions.push({ name: label, type: /ロゴ|logo/i.test(label) ? "logo" : "face", shape: thumbnailState.drawingShape, x, y, w, h });
-        thumbnailState.captionLayout = null;
-        thumbnailState.captionReport = null;
-      }
+      if (label) thumbnailState.protectedRegions.push({ name: label, type: /ロゴ|logo/i.test(label) ? "logo" : "face", shape: thumbnailState.drawingShape, x, y, w, h });
     }
     origin = null;
     draft = null;
@@ -157,8 +132,6 @@ function resetThumbnailResult() {
   thumbnailState.generatedImageDataUrl = "";
   thumbnailState.finalImageDataUrl = "";
   thumbnailState.protectionReport = null;
-  thumbnailState.captionLayout = null;
-  thumbnailState.captionReport = null;
   document.getElementById("thumbnailCandidateRail").replaceChildren();
   document.getElementById("thumbnailPreviewControls").hidden = true;
   document.getElementById("thumbnailQualityList").replaceChildren();
@@ -336,7 +309,6 @@ async function generateThumbnailPreviews() {
     return;
   }
   try {
-    const captionLayout = getThumbnailCaptionLayoutOrThrow();
     generate.disabled = true;
     result.className = "infoItem";
     result.textContent = `${candidateIds.length}案を低画質で作成しています。最終の高画質生成はまだ実行しません...`;
@@ -348,12 +320,11 @@ async function generateThumbnailPreviews() {
         reviewToken: thumbnailState.reviewToken,
         previewMode: thumbnailState.previewMode,
         candidateIds,
-        outputSize: thumbnailState.sourceSize,
-        captionSafeArea: captionLayout.safeArea
+        outputSize: thumbnailState.sourceSize
       })
     });
     for (const preview of payload.previews || []) {
-      thumbnailState.previewImages[preview.candidateId] = await composeThumbnailWithExactCaption(preview.imageDataUrl, captionLayout, preview.candidateId);
+      thumbnailState.previewImages[preview.candidateId] = await compositeProtectedRegions(preview.imageDataUrl);
     }
     thumbnailState.previewCandidateIds = candidateIds;
     renderThumbnailCandidates();
@@ -381,7 +352,7 @@ async function selectThumbnailCandidate(candidateId) {
     thumbnailState.selectedCandidateId = candidateId;
     document.getElementById("thumbnailGenerate").disabled = false;
     result.className = "infoItem";
-    result.textContent = `${production.selectedCandidate.name}を選択しました。保護範囲を避け、指定したテロップ文言を切らずに正確に合成します。`;
+    result.textContent = `${production.selectedCandidate.name}を選択しました。指定した保護範囲は生成後に境界をなじませて元画像から前面復帰します。`;
     renderThumbnailCandidates();
   } catch (error) {
     result.className = "errorItem";
@@ -490,127 +461,77 @@ async function compositeProtectedRegions(generatedImageDataUrl) {
   return canvas.toDataURL("image/png");
 }
 
-function thumbnailCaptionText() {
-  const text = document.getElementById("thumbnailCopy").value.trim();
-  if (!text) throw new Error("変更後のテロップ文言を入力してください。");
-  return text;
-}
-
-function getThumbnailCaptionLayoutOrThrow() {
-  if (!window.ThumbnailCaptionLayout?.createCaptionLayout) {
-    throw new Error("テロップの安全領域を計算できませんでした。ページを再読み込みしてください。");
-  }
-  if (!thumbnailState.sourceSize?.width || !thumbnailState.sourceSize?.height) {
-    throw new Error("元サムネイルを読み込んでください。");
-  }
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d");
-  const layout = window.ThumbnailCaptionLayout.createCaptionLayout({
-    text: thumbnailCaptionText(),
-    width: thumbnailState.sourceSize.width,
-    height: thumbnailState.sourceSize.height,
-    protectedRegions: thumbnailState.protectedRegions,
-    placement: thumbnailState.captionPlacement,
-    measureText: (line, fontSize) => {
-      context.font = `900 ${fontSize}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
-      return context.measureText(line).width;
+function wrapTextForThumbnail(context, text, maxWidth) {
+  const lines = [];
+  let line = "";
+  for (const character of Array.from(String(text || ""))) {
+    const candidate = line + character;
+    if (line && context.measureText(candidate).width > maxWidth) {
+      lines.push(line);
+      line = character;
+    } else {
+      line = candidate;
     }
-  });
-  thumbnailState.captionLayout = layout;
-  return layout;
+  }
+  if (line) lines.push(line);
+  return lines;
 }
 
-const THUMBNAIL_CAPTION_STYLES = {
-  A: { outer: "#4b2131", middle: "#d97845", fillTop: "#fffdf4", fillBottom: "#f3bd6e" },
-  B: { outer: "#281a33", middle: "#df5176", fillTop: "#fff7f9", fillBottom: "#f192ad" },
-  C: { outer: "#173363", middle: "#f0b83c", fillTop: "#fffdef", fillBottom: "#f6d463" },
-  D: { outer: "#244a4d", middle: "#89bdaf", fillTop: "#fffef5", fillBottom: "#d6e9da" },
-  E: { outer: "#503346", middle: "#dfaa93", fillTop: "#fff9f2", fillBottom: "#efc1ac" },
-  F: { outer: "#353535", middle: "#e2ded7", fillTop: "#ffffff", fillBottom: "#f1ede6" }
-};
-
-function thumbnailCaptionStyle(candidateId) {
-  return THUMBNAIL_CAPTION_STYLES[candidateId] || THUMBNAIL_CAPTION_STYLES.B;
-}
-
-function drawExactThumbnailCaption(context, layout, candidateId = thumbnailState.selectedCandidateId) {
-  const { textBounds, fontSize, lineHeight, lines } = layout;
-  const style = thumbnailCaptionStyle(candidateId);
-  const centerX = textBounds.x + textBounds.w / 2;
-  const firstY = textBounds.y + (textBounds.h - lines.length * lineHeight) / 2 + lineHeight / 2;
-  context.save();
-  context.font = `900 ${fontSize}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.lineJoin = "round";
-  context.lineWidth = Math.max(4, Math.round(fontSize * 0.105));
-  context.strokeStyle = style.outer;
-  context.shadowColor = "rgba(24, 16, 24, 0.30)";
-  context.shadowBlur = Math.max(2, Math.round(fontSize * 0.055));
-  context.shadowOffsetY = Math.max(1, Math.round(fontSize * 0.03));
-  lines.forEach((line, index) => context.strokeText(line, centerX, firstY + index * lineHeight));
-  context.shadowColor = "transparent";
-  context.lineWidth = Math.max(2, Math.round(fontSize * 0.036));
-  context.strokeStyle = style.middle;
-  lines.forEach((line, index) => context.strokeText(line, centerX, firstY + index * lineHeight));
-  const fill = context.createLinearGradient(0, textBounds.y, 0, textBounds.y + textBounds.h);
-  fill.addColorStop(0, style.fillTop);
-  fill.addColorStop(0.52, style.fillTop);
-  fill.addColorStop(1, style.fillBottom);
-  context.fillStyle = fill;
-  lines.forEach((line, index) => context.fillText(line, centerX, firstY + index * lineHeight));
-  context.restore();
-}
-
-function redrawEditableCaptionBand(context, generated, layout, canvas) {
-  if (layout?.placement !== "bottom-band" || !layout.replacementArea) return;
-  const area = layout.replacementArea;
-  const x = Math.round(area.x * canvas.width);
-  const y = Math.round(area.y * canvas.height);
-  const width = Math.round(area.w * canvas.width);
-  const height = Math.round(area.h * canvas.height);
-  context.save();
-  context.beginPath();
-  context.rect(x, y, width, height);
-  context.clip();
-  // Restore only the source/AI visual treatment under the exact caption.
-  // This never draws a new band or panel.
-  context.drawImage(generated, 0, 0, generated.naturalWidth, generated.naturalHeight, 0, 0, canvas.width, canvas.height);
-  context.restore();
-}
-
-async function composeThumbnailWithExactCaption(generatedImageDataUrl, suppliedLayout, candidateId = thumbnailState.selectedCandidateId) {
-  const [original, generated] = await Promise.all([thumbnailImage(thumbnailState.imageDataUrl), thumbnailImage(generatedImageDataUrl)]);
-  const canvas = document.createElement("canvas");
-  canvas.width = thumbnailState.sourceSize?.width || generated.naturalWidth;
-  canvas.height = thumbnailState.sourceSize?.height || generated.naturalHeight;
-  const context = canvas.getContext("2d");
-  context.drawImage(generated, 0, 0, generated.naturalWidth, generated.naturalHeight, 0, 0, canvas.width, canvas.height);
-  const layout = suppliedLayout || getThumbnailCaptionLayoutOrThrow();
-  const restored = thumbnailState.protectedRegions.filter((region) => compositeProtectedRegion(context, original, region, canvas));
-  // An existing lower-band treatment is the sole exception to restored regions.
-  // It is never created here; only the operator-specified copy is added.
-  redrawEditableCaptionBand(context, generated, layout, canvas);
-  drawExactThumbnailCaption(context, layout, candidateId);
-  thumbnailState.protectionReport = {
-    restoredCount: restored.length,
-    restoredFaceCount: restored.filter((region) => region.type === "face").length,
-    restoredLogoCount: restored.filter((region) => region.type === "logo").length
-  };
-  thumbnailState.captionReport = {
-    requestedCopy: layout.text,
-    renderedCopy: layout.lines.join(""),
-    fullText: layout.lines.join("") === layout.text,
-    hasCollision: layout.hasCollision,
-    mobileReadable: layout.mobileReadable,
-    youtubeUiSafe: layout.youtubeUiSafe,
-    lineCount: layout.lines.length
-  };
-  return canvas.toDataURL("image/png");
+function textOnlyTelopLayout(context, text, width, height) {
+  const maxWidth = width * 0.88;
+  const maxFont = Math.round(Math.min(width * 0.067, height * 0.105));
+  const minFont = Math.max(28, Math.round(width * 0.028));
+  for (let size = maxFont; size >= minFont; size -= 2) {
+    context.font = `900 ${size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
+    const lines = wrapTextForThumbnail(context, text, maxWidth);
+    if (lines.length <= 2) return { size, lines };
+  }
+  context.font = `900 ${minFont}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
+  return { size: minFont, lines: wrapTextForThumbnail(context, text, maxWidth) };
 }
 
 async function createTextOnlyThumbnail() {
-  return composeThumbnailWithExactCaption(thumbnailState.imageDataUrl);
+  const original = await thumbnailImage(thumbnailState.imageDataUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = thumbnailState.sourceSize?.width || original.naturalWidth;
+  canvas.height = thumbnailState.sourceSize?.height || original.naturalHeight;
+  const context = canvas.getContext("2d");
+  context.drawImage(original, 0, 0, original.naturalWidth, original.naturalHeight, 0, 0, canvas.width, canvas.height);
+
+  const text = document.getElementById("thumbnailCopy").value.trim();
+  const layout = textOnlyTelopLayout(context, text, canvas.width, canvas.height);
+  const lineHeight = Math.round(layout.size * 1.15);
+  const panelHeight = Math.max(Math.round(canvas.height * 0.18), lineHeight * layout.lines.length + Math.round(canvas.height * 0.075));
+  const panelY = canvas.height - panelHeight - Math.round(canvas.height * 0.035);
+  const panelX = Math.round(canvas.width * 0.035);
+  const panelWidth = canvas.width - panelX * 2;
+
+  context.save();
+  const panelGradient = context.createLinearGradient(0, panelY, 0, panelY + panelHeight);
+  panelGradient.addColorStop(0, "rgba(35, 23, 29, 0.86)");
+  panelGradient.addColorStop(1, "rgba(18, 14, 18, 0.92)");
+  context.fillStyle = panelGradient;
+  drawRoundedRect(context, panelX, panelY, panelWidth, panelHeight, Math.round(canvas.height * 0.025));
+  context.fill();
+  context.font = `900 ${layout.size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.lineJoin = "round";
+  context.lineWidth = Math.max(3, Math.round(layout.size * 0.075));
+  context.strokeStyle = "rgba(25, 12, 17, 0.92)";
+  context.fillStyle = "#fffaf2";
+  context.shadowColor = "rgba(0, 0, 0, 0.5)";
+  context.shadowBlur = Math.max(4, Math.round(layout.size * 0.12));
+  const textCenterY = panelY + panelHeight / 2;
+  layout.lines.forEach((line, index) => {
+    const y = textCenterY + (index - (layout.lines.length - 1) / 2) * lineHeight;
+    context.strokeText(line, canvas.width / 2, y);
+    context.fillText(line, canvas.width / 2, y);
+  });
+  context.restore();
+
+  thumbnailState.protectedRegions.forEach((region) => compositeProtectedRegion(context, original, region, canvas));
+  return canvas.toDataURL("image/png");
 }
 
 function showThumbnailFinal(imageDataUrl, alt) {
@@ -639,11 +560,6 @@ function renderThumbnailQuality() {
     const row = thumbnailEl("label", "thumbnailQualityItem");
     const input = document.createElement("input"); input.type = "checkbox"; input.name = key;
     if (key === "faceLock" && thumbnailState.protectionReport?.restoredFaceCount > 0) input.checked = true;
-    if (key === "logoLock" && thumbnailState.protectionReport?.restoredLogoCount > 0) input.checked = true;
-    if (key === "textAccuracy" && thumbnailState.captionReport?.fullText) input.checked = true;
-    if (key === "faceOverlap" && thumbnailState.captionReport && !thumbnailState.captionReport.hasCollision) input.checked = true;
-    if (key === "mobileReadability" && thumbnailState.captionReport?.mobileReadable) input.checked = true;
-    if (key === "youtubeUiSafety" && thumbnailState.captionReport?.youtubeUiSafe) input.checked = true;
     row.append(input, thumbnailEl("span", "", label));
     list.appendChild(row);
   });
@@ -659,8 +575,7 @@ async function restoreProtectedRegionsWithoutGeneration() {
   try {
     result.className = "infoItem";
     result.textContent = "指定した保護範囲を元画像から完全に再復元しています。画像生成は行いません...";
-    const source = thumbnailState.generatedImageDataUrl || thumbnailState.imageDataUrl;
-    showThumbnailFinal(await composeThumbnailWithExactCaption(source), "保護範囲を元画像から再復元したサムネイル");
+    showThumbnailFinal(await compositeProtectedRegions(thumbnailState.finalImageDataUrl), "保護範囲を元画像から再復元したサムネイル");
     result.className = "infoItem";
     result.textContent = "指定した保護範囲を元画像から完全に再復元しました。追加料金はかかりません。顔・表情の項目を確認して、もう一度品質を判定してください。";
   } catch (error) {
@@ -674,30 +589,18 @@ async function generateThumbnail() {
   const result = document.getElementById("thumbnailStatus");
   const generate = document.getElementById("thumbnailGenerate");
   try {
-    const captionLayout = getThumbnailCaptionLayoutOrThrow();
     generate.disabled = true;
     result.className = "infoItem";
     result.textContent = "選択案をImages2.0で高品質化しています。指定した保護範囲は直後に元画像へ戻します...";
     const generated = await api("/api/thumbnails/generate", {
       method: "POST",
       headers: adminHeaders(),
-      body: JSON.stringify({
-        originalImage: thumbnailState.imageDataUrl,
-        reviewToken: thumbnailState.reviewToken,
-        candidateId: thumbnailState.selectedCandidateId,
-        outputSize: thumbnailState.sourceSize,
-        captionSafeArea: captionLayout.safeArea
-      })
+      body: JSON.stringify({ originalImage: thumbnailState.imageDataUrl, reviewToken: thumbnailState.reviewToken, candidateId: thumbnailState.selectedCandidateId, outputSize: thumbnailState.sourceSize })
     });
     thumbnailState.generatedImageDataUrl = generated.imageDataUrl;
-    showThumbnailFinal(
-      await composeThumbnailWithExactCaption(generated.imageDataUrl, captionLayout, thumbnailState.selectedCandidateId),
-      "AI生成と保護領域合成後のサムネイル"
-    );
+    showThumbnailFinal(await compositeProtectedRegions(generated.imageDataUrl), "AI生成と保護領域合成後のサムネイル");
     result.className = "infoItem";
-    result.textContent = captionLayout.placement === "bottom-band"
-      ? "合成が完了しました。元画像に下帯・装飾がある場合だけ、その意匠を活かして指定テロップを切らずに合成しています。最終品質を確認してください。"
-      : "合成が完了しました。指定テロップは保護範囲と右下表示を避け、帯を追加せずに切らずに合成しています。最終品質を確認してください。";
+    result.textContent = "合成が完了しました。最終品質を確認してください。";
   } catch (error) {
     if (error.status === 409) {
       renderThumbnailRegenerationOption(error.message);
@@ -802,10 +705,6 @@ function loadThumbnailWorkspace() {
     button.onclick = () => setThumbnailDrawingShape(button.dataset.thumbnailShape);
   });
   setThumbnailDrawingShape(thumbnailState.drawingShape);
-  document.querySelectorAll("[data-thumbnail-caption-placement]").forEach((button) => {
-    button.onclick = () => setThumbnailCaptionPlacement(button.dataset.thumbnailCaptionPlacement);
-  });
-  setThumbnailCaptionPlacement(thumbnailState.captionPlacement);
   document.getElementById("thumbnailOriginalFile").onchange = () => readThumbnailFile().catch((error) => { document.getElementById("thumbnailStatus").className = "errorItem"; document.getElementById("thumbnailStatus").textContent = error.message; });
   document.getElementById("thumbnailReview").onclick = createThumbnailReview;
   document.querySelectorAll("input[name=thumbnailPreviewMode]").forEach((input) => {

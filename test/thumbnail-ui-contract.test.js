@@ -48,18 +48,3 @@ test("thumbnail API keeps generation, composition planning, and quality gating s
   assert.match(styles, /Images2\.0 高品質サムネイル制作/);
   assert.match(fs.readFileSync(path.join(root, "thumbnail.js"), "utf8"), /今回だけ再生成する/);
 });
-
-test("指定テロップを安全領域へ正確に合成する契約を維持する", () => {
-  assert.match(index, /thumbnail-caption-layout\.js/);
-  assert.match(thumbnail, /getThumbnailCaptionLayoutOrThrow/);
-  assert.match(thumbnail, /composeThumbnailWithExactCaption/);
-  assert.match(thumbnail, /captionSafeArea/);
-  assert.match(thumbnail, /切らずに正確に合成/);
-});
-
-test("保護枠が下帯に重なっても既存の下帯だけを活かせる", () => {
-  assert.match(index, /既存の下帯を活かす/);
-  assert.match(thumbnail, /setThumbnailCaptionPlacement/);
-  assert.match(thumbnail, /placement: thumbnailState\.captionPlacement/);
-  assert.match(thumbnail, /redrawEditableCaptionBand/);
-});

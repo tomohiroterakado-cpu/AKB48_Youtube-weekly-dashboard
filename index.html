@@ -326,12 +326,6 @@
             <button type="button" class="thumbnailShapeButton active" data-thumbnail-shape="ellipse" aria-pressed="true">楕円</button>
             <button type="button" class="thumbnailShapeButton" data-thumbnail-shape="rect" aria-pressed="false">四角</button>
           </div>
-          <div class="thumbnailCaptionPlacement" role="group" aria-label="テロップの配置方法">
-            <span>テロップ配置</span>
-            <button type="button" class="thumbnailCaptionPlacementButton active" data-thumbnail-caption-placement="auto" aria-pressed="true">空き領域へ自動配置</button>
-              <button type="button" class="thumbnailCaptionPlacementButton" data-thumbnail-caption-placement="bottom-band" aria-pressed="false">既存の下帯を活かす</button>
-          </div>
-            <p id="thumbnailCaptionPlacementHint" class="thumbnailCaptionPlacementHint">既存の下帯を活かすでは、元画像にある下帯・装飾だけを利用します。下帯がない画像には、新たな帯を追加しません。</p>
           <div id="thumbnailPreviewSurface" class="thumbnailPreviewSurface"><img id="thumbnailOriginalPreview" alt="元サムネイルのプレビュー" draggable="false" hidden><p id="thumbnailPreviewHint" class="thumbnailPreviewHint" hidden>ドラッグして、顔・ロゴ・変えたくない箇所を保護してください。</p></div>
           <div id="thumbnailProtectedList" class="thumbnailProtectedList"></div>
         </section>
@@ -487,7 +481,6 @@
     <script src="./app.js"></script>
     <script src="./director.js?v=20260818-date-picker"></script>
     <script src="./prepublish.js?v=20260802-multi-angle"></script>
-    <script src="./thumbnail-caption-layout.js?v=20260817-existing-band-only"></script>
-    <script src="./thumbnail.js?v=20260817-existing-band-only"></script>
+    <script src="./thumbnail.js?v=20260813-restored"></script>
   </body>
 </html>
