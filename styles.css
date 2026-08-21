@@ -814,16 +814,13 @@ h2 {
 .thumbnailCopyFields label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 800; }
 .thumbnailPreviewSurface { position: relative; overflow: hidden; aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: 7px; background: #24191b; touch-action: none; cursor: crosshair; }
 .thumbnailPreviewSurface img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none; -webkit-user-drag: none; }
+.thumbnailPreviewSurface canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
 .thumbnailPreviewHint { position: absolute; right: 10px; bottom: 10px; max-width: 280px; margin: 0; padding: 7px 9px; background: rgba(34, 31, 32, .78); color: white; font-size: 11px; line-height: 1.45; pointer-events: none; }
-.thumbnailRegion { position: absolute; border: 2px dashed #d3163a; background: rgba(211, 22, 58, .13); pointer-events: none; }
-.thumbnailRegion--ellipse { border-radius: 50%; }
-.thumbnailRegion--draft { border-color: #c78a17; background: rgba(199, 138, 23, .16); }
-.thumbnailShapePicker { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; color: var(--muted); font-size: 12px; font-weight: 800; }
-.thumbnailShapeButton { min-width: 58px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; background: #fffdfa; color: var(--ink); font: inherit; cursor: pointer; }
-.thumbnailShapeButton.active { border-color: var(--akb-red); background: #fff0f3; color: var(--akb-red); }
-.thumbnailProtectedList { display: grid; gap: 7px; margin-top: 12px; }
-.thumbnailProtectedRow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 9px 10px; border: 1px solid var(--line); background: #fffdfa; font-size: 13px; }
-.thumbnailProtectedRow small { color: var(--muted); }
+.thumbnailBrushControls { display: grid; grid-template-columns: auto minmax(140px, 280px) auto; align-items: center; gap: 10px; margin: 0 0 10px; color: var(--muted); font-size: 12px; font-weight: 800; }
+.thumbnailBrushControls label { white-space: nowrap; }
+.thumbnailBrushControls output { color: var(--akb-red); }
+.thumbnailBrushControls input { width: 100%; accent-color: var(--akb-red); }
+.thumbnailEditList { display: grid; gap: 7px; margin-top: 12px; }
 .textButton { border: 0; background: transparent; color: var(--akb-red); font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
 .thumbnailCandidateRail { display: grid; grid-template-columns: repeat(6, minmax(170px, 1fr)); gap: 10px; overflow-x: auto; }
 .thumbnailCandidate { display: grid; gap: 8px; min-height: 210px; padding: 14px; border: 1px solid var(--line); border-top: 4px solid var(--teal); background: #fffdfa; }
@@ -854,7 +851,7 @@ h2 {
 .thumbnailFinalPreview { min-height: 180px; }
 .thumbnailFinalPreview img { display: block; width: 100%; max-width: 960px; margin: 0 auto; aspect-ratio: 16 / 9; object-fit: contain; background: #24191b; }
 @media (max-width: 920px) { .thumbnailWorkspace { grid-template-columns: 1fr; } .thumbnailQualityPanel { position: static; } .thumbnailCandidateRail { grid-template-columns: repeat(6, minmax(190px, 1fr)); } }
-@media (max-width: 560px) { .thumbnailFormGrid { grid-template-columns: 1fr; } .thumbnailProtectedRow { grid-template-columns: minmax(0, 1fr) auto; } .thumbnailProtectedRow .textButton { grid-column: 1 / -1; justify-self: start; } }
+@media (max-width: 560px) { .thumbnailFormGrid { grid-template-columns: 1fr; } .thumbnailBrushControls { grid-template-columns: 1fr; gap: 6px; } }
 
 /* 公開前レビュー */
 .prepublishPage { width: min(1240px, calc(100% - 32px)); }

@@ -15,20 +15,25 @@ test("thumbnail route exposes the complete Images2.0 production workflow", () =>
     "data-route=\"thumbnail\"", "data-director-view=\"thumbnail\"", "thumbnailOriginalFile",
     "thumbnailPreviewSurface", "thumbnailReview", "thumbnailCandidateRail", "thumbnailGenerate",
     "thumbnailPreviewControls", "thumbnailPreviewModePicker", "thumbnailGeneratePreviews",
-    "thumbnailQualityList", "thumbnailDownload", "thumbnailFinalPreview", "data-thumbnail-shape", "./thumbnail.js"
+    "thumbnailQualityList", "thumbnailDownload", "thumbnailFinalPreview", "thumbnailBrushSize", "thumbnailEditCanvas", "thumbnailClearBrush", "./thumbnail.js"
   ].forEach((token) => assert.ok(index.includes(token), `index.html must include ${token}`));
   assert.match(director, /resolved === "thumbnail"/);
   assert.match(styles, /Images2\.0 高品質サムネイル制作/);
   assert.match(thumbnail, /location\.hash === "#thumbnail"/);
-  assert.match(thumbnail, /を読み込みました。顔は楕円、ロゴや重要な文字は四角/);
+  assert.match(thumbnail, /を読み込みました。変更したいテロップの範囲だけをブラシでなぞって/);
   assert.match(index, /thumbnailOriginalPreview"[^>]*draggable="false"/);
   assert.match(styles, /thumbnailPreviewSurface img[^\n]*pointer-events: none/);
-  assert.match(styles, /thumbnailRegion--ellipse/);
-  assert.match(thumbnail, /createProtectionMask/);
-  assert.match(thumbnail, /drawOriginalInsideRegion/);
-  assert.match(thumbnail, /must never be blended with image-model output/);
-  assert.match(thumbnail, /保護範囲を元画像から再復元する/);
-  assert.match(thumbnail, /restoredFaceCount/);
+  assert.match(styles, /thumbnailPreviewSurface canvas/);
+  assert.match(thumbnail, /createEditMask/);
+  assert.match(thumbnail, /compositeEditedRegions/);
+  assert.match(thumbnail, /ブラシでなぞった範囲だけを編集/);
+  assert.match(thumbnail, /サムネイルは16:9の画像を選択してください/);
+  assert.match(thumbnail, /thumbnailState\.production\?\.images2Brief\?\.requestedCopy/);
+  assert.match(thumbnail, /指定テロップがブラシ範囲に収まりません/);
+  assert.match(thumbnail, /opaquePixelCount/);
+  assert.match(thumbnail, /opaquePixelCount\(textLayer\) < textPixels/);
+  assert.doesNotMatch(thumbnail, /compositeProtectedRegions/);
+  assert.doesNotMatch(index, /保護領域/);
   assert.match(thumbnail, /renderThumbnailSafetyFallbackOption/);
   assert.match(thumbnail, /AIなしでテロップを合成する/);
   assert.match(thumbnail, /createTextOnlyThumbnail/);

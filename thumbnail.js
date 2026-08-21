@@ -7,9 +7,8 @@ const thumbnailState = {
   previewMode: "selected-two",
   previewCandidateIds: [],
   previewImages: {},
-  protectedRegions: [],
-  protectionReport: null,
-  drawingShape: "ellipse",
+  editRegions: [],
+  brushSize: 0.12,
   generatedImageDataUrl: "",
   finalImageDataUrl: "",
   sourceSize: null
@@ -39,86 +38,80 @@ function normalizedPointer(event, surface) {
   };
 }
 
-function renderThumbnailRegions() {
+function brushCanvas() {
+  return document.getElementById("thumbnailEditCanvas");
+}
+
+function resizeBrushCanvas() {
+  const canvas = brushCanvas();
   const surface = document.getElementById("thumbnailPreviewSurface");
-  const list = document.getElementById("thumbnailProtectedList");
-  if (!surface || !list) return;
-  surface.querySelectorAll(".thumbnailRegion").forEach((node) => node.remove());
+  if (!canvas || !surface) return;
+  const { width, height } = surface.getBoundingClientRect();
+  canvas.width = Math.max(1, Math.round(width));
+  canvas.height = Math.max(1, Math.round(height));
+  canvas.hidden = !thumbnailState.imageDataUrl;
+  renderThumbnailEditRegions();
+}
+
+function drawBrushPath(context, region, width, height) {
+  const points = region.points || [];
+  if (!points.length) return;
+  context.save();
+  context.strokeStyle = "rgba(211, 22, 58, .68)";
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.lineWidth = Math.max(2, region.brushSize * Math.min(width, height));
+  context.beginPath();
+  context.moveTo(points[0].x * width, points[0].y * height);
+  points.slice(1).forEach((point) => context.lineTo(point.x * width, point.y * height));
+  if (points.length === 1) context.lineTo(points[0].x * width + 0.1, points[0].y * height + 0.1);
+  context.stroke();
+  context.restore();
+}
+
+function renderThumbnailEditRegions() {
+  const canvas = brushCanvas();
+  const list = document.getElementById("thumbnailEditList");
+  if (!canvas || !list) return;
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  thumbnailState.editRegions.forEach((region) => drawBrushPath(context, region, canvas.width, canvas.height));
   list.replaceChildren();
-  thumbnailState.protectedRegions.forEach((region, index) => {
-    const shape = region.shape === "ellipse" ? "ellipse" : "rect";
-    const overlay = thumbnailEl("div", `thumbnailRegion thumbnailRegion--${shape}`);
-    overlay.style.left = `${region.x * 100}%`;
-    overlay.style.top = `${region.y * 100}%`;
-    overlay.style.width = `${region.w * 100}%`;
-    overlay.style.height = `${region.h * 100}%`;
-    overlay.title = region.name;
-    surface.appendChild(overlay);
-    const row = thumbnailEl("div", "thumbnailProtectedRow");
-    const typeLabel = region.type === "logo" ? "ロゴ" : "顔・重要部分";
-    row.append(thumbnailEl("span", "", region.name), thumbnailEl("small", "", `${typeLabel}・${shape === "ellipse" ? "楕円" : "四角"}`));
-    const remove = thumbnailEl("button", "textButton", "削除");
-    remove.type = "button";
-    remove.addEventListener("click", () => {
-      thumbnailState.protectedRegions.splice(index, 1);
-      renderThumbnailRegions();
-    });
-    row.appendChild(remove);
-    list.appendChild(row);
-  });
-  if (!thumbnailState.protectedRegions.length) list.appendChild(thumbnailEl("p", "meta", "顔は楕円、ロゴや文字は四角を選び、ドラッグして保護領域に追加してください。"));
+  if (!thumbnailState.editRegions.length) {
+    list.appendChild(thumbnailEl("p", "meta", "テロップを修正・追加する場所だけをなぞってください。なぞらない場所は元画像のままです。"));
+  } else {
+    list.appendChild(thumbnailEl("p", "meta", `編集ブラシ ${thumbnailState.editRegions.length}本。指定範囲の中に、入力したテロップを収めます。`));
+  }
 }
 
-function setThumbnailDrawingShape(shape) {
-  thumbnailState.drawingShape = shape === "rect" ? "rect" : "ellipse";
-  document.querySelectorAll("[data-thumbnail-shape]").forEach((button) => {
-    const active = button.dataset.thumbnailShape === thumbnailState.drawingShape;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-pressed", String(active));
-  });
-}
-
-function bindThumbnailProtectionDrawing() {
-  const surface = document.getElementById("thumbnailPreviewSurface");
-  if (!surface || surface.dataset.bound) return;
-  surface.dataset.bound = "true";
-  let origin = null;
+function bindThumbnailBrushDrawing() {
+  const canvas = brushCanvas();
+  if (!canvas || canvas.dataset.bound) return;
+  canvas.dataset.bound = "true";
   let draft = null;
-
-  surface.addEventListener("pointerdown", (event) => {
+  canvas.addEventListener("pointerdown", (event) => {
     if (!thumbnailState.imageDataUrl) return;
     event.preventDefault();
-    origin = normalizedPointer(event, surface);
-    draft = thumbnailEl("div", `thumbnailRegion thumbnailRegion--${thumbnailState.drawingShape} thumbnailRegion--draft`);
-    surface.appendChild(draft);
-    surface.setPointerCapture(event.pointerId);
+    draft = { brushSize: thumbnailState.brushSize, points: [normalizedPointer(event, canvas)] };
+    canvas.setPointerCapture(event.pointerId);
   });
-  surface.addEventListener("pointermove", (event) => {
-    if (!origin || !draft) return;
-    const point = normalizedPointer(event, surface);
-    const x = Math.min(origin.x, point.x);
-    const y = Math.min(origin.y, point.y);
-    draft.style.left = `${x * 100}%`;
-    draft.style.top = `${y * 100}%`;
-    draft.style.width = `${Math.abs(point.x - origin.x) * 100}%`;
-    draft.style.height = `${Math.abs(point.y - origin.y) * 100}%`;
+  canvas.addEventListener("pointermove", (event) => {
+    if (!draft) return;
+    draft.points.push(normalizedPointer(event, canvas));
+    const context = canvas.getContext("2d");
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    thumbnailState.editRegions.forEach((region) => drawBrushPath(context, region, canvas.width, canvas.height));
+    drawBrushPath(context, draft, canvas.width, canvas.height);
   });
-  surface.addEventListener("pointerup", (event) => {
-    if (!origin || !draft) return;
-    const point = normalizedPointer(event, surface);
-    const x = Math.min(origin.x, point.x);
-    const y = Math.min(origin.y, point.y);
-    const w = Math.abs(point.x - origin.x);
-    const h = Math.abs(point.y - origin.y);
-    draft.remove();
-    if (w > 0.03 && h > 0.03) {
-      const label = prompt("保護する対象を入力してください（例：中央の顔、右上ロゴ）", "顔");
-      if (label) thumbnailState.protectedRegions.push({ name: label, type: /ロゴ|logo/i.test(label) ? "logo" : "face", shape: thumbnailState.drawingShape, x, y, w, h });
-    }
-    origin = null;
+  const finish = (event) => {
+    if (!draft) return;
+    draft.points.push(normalizedPointer(event, canvas));
+    thumbnailState.editRegions.push(draft);
     draft = null;
-    renderThumbnailRegions();
-  });
+    renderThumbnailEditRegions();
+  };
+  canvas.addEventListener("pointerup", finish);
+  canvas.addEventListener("pointercancel", () => { draft = null; renderThumbnailEditRegions(); });
 }
 
 function resetThumbnailResult() {
@@ -131,7 +124,6 @@ function resetThumbnailResult() {
   thumbnailState.previewImages = {};
   thumbnailState.generatedImageDataUrl = "";
   thumbnailState.finalImageDataUrl = "";
-  thumbnailState.protectionReport = null;
   document.getElementById("thumbnailCandidateRail").replaceChildren();
   document.getElementById("thumbnailPreviewControls").hidden = true;
   document.getElementById("thumbnailQualityList").replaceChildren();
@@ -154,16 +146,20 @@ async function readThumbnailFile() {
     reader.readAsDataURL(file);
   });
   const image = await thumbnailImage(thumbnailState.imageDataUrl);
+  if (Math.abs((image.naturalWidth / image.naturalHeight) - (16 / 9)) > 0.01) {
+    thumbnailState.imageDataUrl = "";
+    throw new Error("サムネイルは16:9の画像を選択してください。ブラシ位置と編集範囲を正確に一致させるためです。");
+  }
   thumbnailState.sourceSize = { width: image.naturalWidth, height: image.naturalHeight };
   document.getElementById("thumbnailOriginalPreview").src = thumbnailState.imageDataUrl;
   document.getElementById("thumbnailOriginalPreview").hidden = false;
   document.getElementById("thumbnailPreviewHint").hidden = false;
-  thumbnailState.protectedRegions = [];
+  thumbnailState.editRegions = [];
   resetThumbnailResult();
-  renderThumbnailRegions();
+  resizeBrushCanvas();
   const status = document.getElementById("thumbnailStatus");
   status.className = "infoItem";
-  status.textContent = `「${file.name}」を読み込みました。顔は楕円、ロゴや重要な文字は四角を選んでドラッグで囲んでから、6案を設計してください。`;
+  status.textContent = `「${file.name}」を読み込みました。変更したいテロップの範囲だけをブラシでなぞってから、6案を設計してください。`;
 }
 
 function renderThumbnailCandidates() {
@@ -270,14 +266,14 @@ async function createThumbnailReview() {
   try {
     if (!thumbnailState.imageDataUrl) await readThumbnailFile();
     result.className = "infoItem";
-    result.textContent = "入力したテロップと、指定した保護範囲をもとに6案を作成しています...";
+    result.textContent = "入力したテロップと、ブラシで指定した編集範囲をもとに6案を作成しています...";
     const review = await api("/api/thumbnails/review", {
       method: "POST",
       headers: adminHeaders(),
       body: JSON.stringify({
         jobId: document.getElementById("thumbnailJobId").value.trim(),
         requestedCopy: document.getElementById("thumbnailCopy").value.trim(),
-        protectedRegions: thumbnailState.protectedRegions
+        editRegions: thumbnailState.editRegions
       })
     });
     thumbnailState.review = review;
@@ -324,7 +320,7 @@ async function generateThumbnailPreviews() {
       })
     });
     for (const preview of payload.previews || []) {
-      thumbnailState.previewImages[preview.candidateId] = await compositeProtectedRegions(preview.imageDataUrl);
+      thumbnailState.previewImages[preview.candidateId] = await compositeEditedRegions(preview.imageDataUrl);
     }
     thumbnailState.previewCandidateIds = candidateIds;
     renderThumbnailCandidates();
@@ -352,7 +348,7 @@ async function selectThumbnailCandidate(candidateId) {
     thumbnailState.selectedCandidateId = candidateId;
     document.getElementById("thumbnailGenerate").disabled = false;
     result.className = "infoItem";
-    result.textContent = `${production.selectedCandidate.name}を選択しました。指定した保護範囲は生成後に境界をなじませて元画像から前面復帰します。`;
+    result.textContent = `${production.selectedCandidate.name}を選択しました。ブラシでなぞった範囲だけを編集し、指定テロップはその範囲内に正確に合成します。`;
     renderThumbnailCandidates();
   } catch (error) {
     result.className = "errorItem";
@@ -360,105 +356,35 @@ async function selectThumbnailCandidate(candidateId) {
   }
 }
 
-function drawRoundedRect(context, x, y, width, height, radius) {
-  const safeRadius = Math.min(radius, width / 2, height / 2);
-  context.beginPath();
-  context.moveTo(x + safeRadius, y);
-  context.arcTo(x + width, y, x + width, y + height, safeRadius);
-  context.arcTo(x + width, y + height, x, y + height, safeRadius);
-  context.arcTo(x, y + height, x, y, safeRadius);
-  context.arcTo(x, y, x + width, y, safeRadius);
-  context.closePath();
-}
-
-function createProtectionMask(width, height, shape) {
+function createEditMask(width, height) {
   const mask = document.createElement("canvas");
   mask.width = width;
   mask.height = height;
   const context = mask.getContext("2d");
-  const feather = Math.max(3, Math.min(18, Math.round(Math.min(width, height) * 0.055)));
-  const inset = feather * 1.5;
-  context.save();
-  context.fillStyle = "white";
-  context.filter = `blur(${feather}px)`;
-  if (shape === "ellipse") {
+  context.strokeStyle = "white";
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  thumbnailState.editRegions.forEach((region) => {
+    const points = region.points || [];
+    if (!points.length) return;
+    context.lineWidth = Math.max(2, region.brushSize * Math.min(width, height));
     context.beginPath();
-    context.ellipse(width / 2, height / 2, Math.max(1, width / 2 - inset), Math.max(1, height / 2 - inset), 0, 0, Math.PI * 2);
-    context.fill();
-  } else {
-    drawRoundedRect(context, inset, inset, Math.max(1, width - inset * 2), Math.max(1, height - inset * 2), Math.min(18, Math.max(4, Math.min(width, height) * 0.12)));
-    context.fill();
-  }
-  context.restore();
+    context.moveTo(points[0].x * width, points[0].y * height);
+    points.slice(1).forEach((point) => context.lineTo(point.x * width, point.y * height));
+    if (points.length === 1) context.lineTo(points[0].x * width + 0.1, points[0].y * height + 0.1);
+    context.stroke();
+  });
   return mask;
 }
 
-function expandedProtectionRegion(region, padding) {
-  const left = Math.max(0, region.x - padding);
-  const top = Math.max(0, region.y - padding);
-  const right = Math.min(1, region.x + region.w + padding);
-  const bottom = Math.min(1, region.y + region.h + padding);
-  return { ...region, x: left, y: top, w: right - left, h: bottom - top };
-}
-
-function traceProtectionPath(context, x, y, width, height, shape) {
-  context.beginPath();
-  if (shape === "ellipse") {
-    context.ellipse(x + width / 2, y + height / 2, Math.max(1, width / 2), Math.max(1, height / 2), 0, 0, Math.PI * 2);
-  } else {
-    drawRoundedRect(context, x, y, width, height, Math.min(18, Math.max(4, Math.min(width, height) * 0.12)));
-  }
-}
-
-function drawOriginalInsideRegion(context, original, region, canvas) {
-  const x = Math.round(region.x * canvas.width);
-  const y = Math.round(region.y * canvas.height);
-  const w = Math.round(region.w * canvas.width);
-  const h = Math.round(region.h * canvas.height);
-  if (w < 2 || h < 2) return false;
-  context.save();
-  traceProtectionPath(context, x, y, w, h, region.shape);
-  context.clip();
-  // This is intentionally a full, hard restore. The selected face/logo pixels
-  // must never be blended with image-model output.
-  context.drawImage(original, 0, 0, original.naturalWidth, original.naturalHeight, 0, 0, canvas.width, canvas.height);
-  context.restore();
-  return true;
-}
-
-function compositeProtectedRegion(context, original, region, canvas) {
-  const padding = region.type === "face" ? 0.022 : 0.012;
-  const outerRegion = expandedProtectionRegion(region, padding);
-  const outerX = Math.round(outerRegion.x * canvas.width);
-  const outerY = Math.round(outerRegion.y * canvas.height);
-  const outerW = Math.round(outerRegion.w * canvas.width);
-  const outerH = Math.round(outerRegion.h * canvas.height);
-  if (outerW < 2 || outerH < 2) return false;
-  const patch = document.createElement("canvas");
-  patch.width = outerW;
-  patch.height = outerH;
-  const patchContext = patch.getContext("2d");
-  patchContext.drawImage(original, outerRegion.x * original.naturalWidth, outerRegion.y * original.naturalHeight, outerRegion.w * original.naturalWidth, outerRegion.h * original.naturalHeight, 0, 0, outerW, outerH);
-  patchContext.globalCompositeOperation = "destination-in";
-  patchContext.drawImage(createProtectionMask(outerW, outerH, outerRegion.shape), 0, 0);
-  context.drawImage(patch, outerX, outerY);
-  return drawOriginalInsideRegion(context, original, region, canvas);
-}
-
-async function compositeProtectedRegions(generatedImageDataUrl) {
-  const [original, generated] = await Promise.all([thumbnailImage(thumbnailState.imageDataUrl), thumbnailImage(generatedImageDataUrl)]);
-  const canvas = document.createElement("canvas");
-  canvas.width = thumbnailState.sourceSize?.width || generated.naturalWidth;
-  canvas.height = thumbnailState.sourceSize?.height || generated.naturalHeight;
-  const context = canvas.getContext("2d");
-  context.drawImage(generated, 0, 0, generated.naturalWidth, generated.naturalHeight, 0, 0, canvas.width, canvas.height);
-  const restored = thumbnailState.protectedRegions.filter((region) => compositeProtectedRegion(context, original, region, canvas));
-  thumbnailState.protectionReport = {
-    restoredCount: restored.length,
-    restoredFaceCount: restored.filter((region) => region.type === "face").length,
-    restoredLogoCount: restored.filter((region) => region.type === "logo").length
-  };
-  return canvas.toDataURL("image/png");
+function editBounds(width, height) {
+  const points = thumbnailState.editRegions.flatMap((region) => (region.points || []).map((point) => ({ ...point, brushSize: region.brushSize })));
+  if (!points.length) throw new Error("テロップを編集する範囲をブラシでなぞってください。");
+  const minX = Math.max(0, Math.min(...points.map((point) => point.x - point.brushSize / 2)) * width);
+  const maxX = Math.min(width, Math.max(...points.map((point) => point.x + point.brushSize / 2)) * width);
+  const minY = Math.max(0, Math.min(...points.map((point) => point.y - point.brushSize / 2)) * height);
+  const maxY = Math.min(height, Math.max(...points.map((point) => point.y + point.brushSize / 2)) * height);
+  return { x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) };
 }
 
 function wrapTextForThumbnail(context, text, maxWidth) {
@@ -479,59 +405,92 @@ function wrapTextForThumbnail(context, text, maxWidth) {
 
 function textOnlyTelopLayout(context, text, width, height) {
   const maxWidth = width * 0.88;
-  const maxFont = Math.round(Math.min(width * 0.067, height * 0.105));
-  const minFont = Math.max(28, Math.round(width * 0.028));
+  const maxFont = Math.max(14, Math.round(Math.min(width * 0.15, height * 0.58)));
+  const minFont = Math.max(12, Math.round(Math.min(width, height) * 0.13));
   for (let size = maxFont; size >= minFont; size -= 2) {
     context.font = `900 ${size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
     const lines = wrapTextForThumbnail(context, text, maxWidth);
-    if (lines.length <= 2) return { size, lines };
+    if (lines.length <= 3 && lines.length * size * 1.18 <= height * 0.9) return { size, lines };
   }
-  context.font = `900 ${minFont}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
-  return { size: minFont, lines: wrapTextForThumbnail(context, text, maxWidth) };
+  return null;
 }
 
-async function createTextOnlyThumbnail() {
-  const original = await thumbnailImage(thumbnailState.imageDataUrl);
+function opaquePixelCount(canvas) {
+  const pixels = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+  let count = 0;
+  for (let index = 3; index < pixels.length; index += 4) if (pixels[index] > 32) count += 1;
+  return count;
+}
+
+function drawExactTelop(canvas, mask) {
+  const text = thumbnailState.production?.images2Brief?.requestedCopy || thumbnailState.review?.source?.requestedCopy || "";
+  const bounds = editBounds(canvas.width, canvas.height);
+  const panelLayer = document.createElement("canvas");
+  panelLayer.width = canvas.width;
+  panelLayer.height = canvas.height;
+  const panelContext = panelLayer.getContext("2d");
+  const textLayer = document.createElement("canvas");
+  textLayer.width = canvas.width;
+  textLayer.height = canvas.height;
+  const context = textLayer.getContext("2d");
+  const layout = textOnlyTelopLayout(context, text, bounds.width, bounds.height);
+  if (!layout) throw new Error("指定テロップがブラシ範囲に収まりません。ブラシ範囲を広げるか、テロップを短くしてからもう一度6案を設計してください。");
+  const lineHeight = Math.round(layout.size * 1.15);
+  panelContext.save();
+  const panelGradient = panelContext.createLinearGradient(bounds.x, bounds.y, bounds.x, bounds.y + bounds.height);
+  panelGradient.addColorStop(0, "rgba(46, 20, 31, 0.36)");
+  panelGradient.addColorStop(1, "rgba(14, 10, 15, 0.62)");
+  panelContext.fillStyle = panelGradient;
+  panelContext.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+  panelContext.restore();
+  context.font = `900 ${layout.size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.lineJoin = "round";
+  context.lineWidth = Math.max(2, Math.round(layout.size * 0.075));
+  context.strokeStyle = "rgba(25, 12, 17, 0.94)";
+  context.fillStyle = "#fffaf2";
+  context.shadowColor = "rgba(0, 0, 0, 0.55)";
+  context.shadowBlur = Math.max(3, Math.round(layout.size * 0.12));
+  const textCenterY = bounds.y + bounds.height / 2;
+  layout.lines.forEach((line, index) => {
+    const y = textCenterY + (index - (layout.lines.length - 1) / 2) * lineHeight;
+    context.strokeText(line, bounds.x + bounds.width / 2, y);
+    context.fillText(line, bounds.x + bounds.width / 2, y);
+  });
+  context.restore();
+  const textPixels = opaquePixelCount(textLayer);
+  textLayer.getContext("2d").globalCompositeOperation = "destination-in";
+  textLayer.getContext("2d").drawImage(mask, 0, 0);
+  if (opaquePixelCount(textLayer) < textPixels) throw new Error("指定テロップがブラシ範囲に収まりません。範囲を文字の周囲まで広げ、ひと続きに塗ってからもう一度6案を設計してください。");
+  panelContext.globalCompositeOperation = "destination-in";
+  panelContext.drawImage(mask, 0, 0);
+  canvas.getContext("2d").drawImage(panelLayer, 0, 0);
+  canvas.getContext("2d").drawImage(textLayer, 0, 0);
+}
+
+async function compositeEditedRegions(generatedImageDataUrl) {
+  const [original, generated] = await Promise.all([thumbnailImage(thumbnailState.imageDataUrl), thumbnailImage(generatedImageDataUrl)]);
   const canvas = document.createElement("canvas");
   canvas.width = thumbnailState.sourceSize?.width || original.naturalWidth;
   canvas.height = thumbnailState.sourceSize?.height || original.naturalHeight;
   const context = canvas.getContext("2d");
   context.drawImage(original, 0, 0, original.naturalWidth, original.naturalHeight, 0, 0, canvas.width, canvas.height);
-
-  const text = document.getElementById("thumbnailCopy").value.trim();
-  const layout = textOnlyTelopLayout(context, text, canvas.width, canvas.height);
-  const lineHeight = Math.round(layout.size * 1.15);
-  const panelHeight = Math.max(Math.round(canvas.height * 0.18), lineHeight * layout.lines.length + Math.round(canvas.height * 0.075));
-  const panelY = canvas.height - panelHeight - Math.round(canvas.height * 0.035);
-  const panelX = Math.round(canvas.width * 0.035);
-  const panelWidth = canvas.width - panelX * 2;
-
-  context.save();
-  const panelGradient = context.createLinearGradient(0, panelY, 0, panelY + panelHeight);
-  panelGradient.addColorStop(0, "rgba(35, 23, 29, 0.86)");
-  panelGradient.addColorStop(1, "rgba(18, 14, 18, 0.92)");
-  context.fillStyle = panelGradient;
-  drawRoundedRect(context, panelX, panelY, panelWidth, panelHeight, Math.round(canvas.height * 0.025));
-  context.fill();
-  context.font = `900 ${layout.size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.lineJoin = "round";
-  context.lineWidth = Math.max(3, Math.round(layout.size * 0.075));
-  context.strokeStyle = "rgba(25, 12, 17, 0.92)";
-  context.fillStyle = "#fffaf2";
-  context.shadowColor = "rgba(0, 0, 0, 0.5)";
-  context.shadowBlur = Math.max(4, Math.round(layout.size * 0.12));
-  const textCenterY = panelY + panelHeight / 2;
-  layout.lines.forEach((line, index) => {
-    const y = textCenterY + (index - (layout.lines.length - 1) / 2) * lineHeight;
-    context.strokeText(line, canvas.width / 2, y);
-    context.fillText(line, canvas.width / 2, y);
-  });
-  context.restore();
-
-  thumbnailState.protectedRegions.forEach((region) => compositeProtectedRegion(context, original, region, canvas));
+  const mask = createEditMask(canvas.width, canvas.height);
+  const editLayer = document.createElement("canvas");
+  editLayer.width = canvas.width;
+  editLayer.height = canvas.height;
+  const editContext = editLayer.getContext("2d");
+  editContext.drawImage(generated, 0, 0, generated.naturalWidth, generated.naturalHeight, 0, 0, canvas.width, canvas.height);
+  editContext.globalCompositeOperation = "destination-in";
+  editContext.drawImage(mask, 0, 0);
+  context.drawImage(editLayer, 0, 0);
+  drawExactTelop(canvas, mask);
   return canvas.toDataURL("image/png");
+}
+
+async function createTextOnlyThumbnail() {
+  return compositeEditedRegions(thumbnailState.imageDataUrl);
 }
 
 function showThumbnailFinal(imageDataUrl, alt) {
@@ -559,7 +518,7 @@ function renderThumbnailQuality() {
   ].forEach(([key, label]) => {
     const row = thumbnailEl("label", "thumbnailQualityItem");
     const input = document.createElement("input"); input.type = "checkbox"; input.name = key;
-    if (key === "faceLock" && thumbnailState.protectionReport?.restoredFaceCount > 0) input.checked = true;
+    if (key === "textAccuracy" && thumbnailState.finalImageDataUrl) input.checked = true;
     row.append(input, thumbnailEl("span", "", label));
     list.appendChild(row);
   });
@@ -569,21 +528,6 @@ function renderThumbnailQuality() {
   list.appendChild(evaluate);
 }
 
-async function restoreProtectedRegionsWithoutGeneration() {
-  const result = document.getElementById("thumbnailStatus");
-  if (!thumbnailState.finalImageDataUrl) return;
-  try {
-    result.className = "infoItem";
-    result.textContent = "指定した保護範囲を元画像から完全に再復元しています。画像生成は行いません...";
-    showThumbnailFinal(await compositeProtectedRegions(thumbnailState.finalImageDataUrl), "保護範囲を元画像から再復元したサムネイル");
-    result.className = "infoItem";
-    result.textContent = "指定した保護範囲を元画像から完全に再復元しました。追加料金はかかりません。顔・表情の項目を確認して、もう一度品質を判定してください。";
-  } catch (error) {
-    result.className = "errorItem";
-    result.textContent = error.message;
-  }
-}
-
 async function generateThumbnail() {
   if (!requireAdmin() || !thumbnailState.production) return;
   const result = document.getElementById("thumbnailStatus");
@@ -591,14 +535,14 @@ async function generateThumbnail() {
   try {
     generate.disabled = true;
     result.className = "infoItem";
-    result.textContent = "選択案をImages2.0で高品質化しています。指定した保護範囲は直後に元画像へ戻します...";
+    result.textContent = "選択案をImages2.0で高品質化しています。ブラシでなぞった範囲だけを合成し、指定テロップは正確に載せます...";
     const generated = await api("/api/thumbnails/generate", {
       method: "POST",
       headers: adminHeaders(),
       body: JSON.stringify({ originalImage: thumbnailState.imageDataUrl, reviewToken: thumbnailState.reviewToken, candidateId: thumbnailState.selectedCandidateId, outputSize: thumbnailState.sourceSize })
     });
     thumbnailState.generatedImageDataUrl = generated.imageDataUrl;
-    showThumbnailFinal(await compositeProtectedRegions(generated.imageDataUrl), "AI生成と保護領域合成後のサムネイル");
+    showThumbnailFinal(await compositeEditedRegions(generated.imageDataUrl), "AI生成とブラシ指定範囲の合成後のサムネイル");
     result.className = "infoItem";
     result.textContent = "合成が完了しました。最終品質を確認してください。";
   } catch (error) {
@@ -677,12 +621,6 @@ async function evaluateThumbnailQuality() {
     result.className = quality.status === "approved_for_export" ? "infoItem" : "warningItem";
     if (quality.status === "approved_for_export") {
       result.textContent = "公開前品質をすべて通過しました。最終PNGをダウンロードできます。";
-    } else if (quality.fallbacks.includes("restore_original_faces") && thumbnailState.finalImageDataUrl) {
-      result.replaceChildren(document.createTextNode(`修正が必要です：${quality.fallbacks.join("、")}。`));
-      const restore = thumbnailEl("button", "secondaryButton", "保護範囲を元画像から再復元する");
-      restore.type = "button";
-      restore.addEventListener("click", restoreProtectedRegionsWithoutGeneration);
-      result.append(document.createTextNode(" "), restore);
     } else {
       result.textContent = `修正が必要です：${quality.fallbacks.join("、")}`;
     }
@@ -700,11 +638,18 @@ function downloadThumbnail() {
 }
 
 function loadThumbnailWorkspace() {
-  bindThumbnailProtectionDrawing();
-  document.querySelectorAll("[data-thumbnail-shape]").forEach((button) => {
-    button.onclick = () => setThumbnailDrawingShape(button.dataset.thumbnailShape);
-  });
-  setThumbnailDrawingShape(thumbnailState.drawingShape);
+  bindThumbnailBrushDrawing();
+  const brushSize = document.getElementById("thumbnailBrushSize");
+  const brushSizeValue = document.getElementById("thumbnailBrushSizeValue");
+  brushSize.oninput = () => {
+    thumbnailState.brushSize = Number(brushSize.value) / 100;
+    brushSizeValue.value = `${brushSize.value}%`;
+    brushSizeValue.textContent = `${brushSize.value}%`;
+  };
+  document.getElementById("thumbnailClearBrush").onclick = () => {
+    thumbnailState.editRegions = [];
+    renderThumbnailEditRegions();
+  };
   document.getElementById("thumbnailOriginalFile").onchange = () => readThumbnailFile().catch((error) => { document.getElementById("thumbnailStatus").className = "errorItem"; document.getElementById("thumbnailStatus").textContent = error.message; });
   document.getElementById("thumbnailReview").onclick = createThumbnailReview;
   document.querySelectorAll("input[name=thumbnailPreviewMode]").forEach((input) => {
@@ -713,7 +658,8 @@ function loadThumbnailWorkspace() {
   document.getElementById("thumbnailGeneratePreviews").onclick = generateThumbnailPreviews;
   document.getElementById("thumbnailGenerate").onclick = generateThumbnail;
   document.getElementById("thumbnailDownload").onclick = downloadThumbnail;
-  renderThumbnailRegions();
+  window.addEventListener("resize", resizeBrushCanvas);
+  resizeBrushCanvas();
 }
 
 window.loadThumbnailWorkspace = loadThumbnailWorkspace;

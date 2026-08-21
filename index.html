@@ -317,17 +317,17 @@
               <button id="thumbnailReview" class="primaryButton" type="button">6案を設計する</button>
             </div>
           </div>
-          <p id="thumbnailStatus" class="meta" aria-live="polite">元画像を読み込み、指定した顔・ロゴ・変えたくない箇所を保護してから6案を比較します。画像AIが安全判定で使えない場合は、元画像を変えずにテロップだけを合成する代替モードを選べます。</p>
+          <p id="thumbnailStatus" class="meta" aria-live="polite">元画像を読み込み、テロップを変えたい範囲だけをブラシでなぞってください。なぞっていない部分は元画像のまま保持します。</p>
         </section>
         <section class="directorPanel thumbnailPreviewPanel">
-          <div class="panelHeader"><div><span class="sectionLabel">保護領域</span><h2>顔・ロゴをドラッグして囲む</h2><p class="meta">顔は楕円、ロゴや文字は四角で囲みます。生成後は境界をなじませて元画像から前面へ戻します。</p></div></div>
-          <div class="thumbnailShapePicker" role="group" aria-label="保護領域の形状">
-            <span>選択形状</span>
-            <button type="button" class="thumbnailShapeButton active" data-thumbnail-shape="ellipse" aria-pressed="true">楕円</button>
-            <button type="button" class="thumbnailShapeButton" data-thumbnail-shape="rect" aria-pressed="false">四角</button>
+          <div class="panelHeader"><div><span class="sectionLabel">編集ブラシ</span><h2>テロップを直す場所だけなぞる</h2><p class="meta">ブラシでなぞった範囲だけを編集します。必要なテロップが収まるよう、文字数に合わせて広めに塗ってください。</p></div></div>
+          <div class="thumbnailBrushControls" role="group" aria-label="編集ブラシの太さ">
+            <label for="thumbnailBrushSize">ブラシの太さ <output id="thumbnailBrushSizeValue" for="thumbnailBrushSize">12%</output></label>
+            <input id="thumbnailBrushSize" type="range" min="4" max="30" value="12" step="1">
+            <button id="thumbnailClearBrush" class="textButton" type="button">なぞった範囲を消去</button>
           </div>
-          <div id="thumbnailPreviewSurface" class="thumbnailPreviewSurface"><img id="thumbnailOriginalPreview" alt="元サムネイルのプレビュー" draggable="false" hidden><p id="thumbnailPreviewHint" class="thumbnailPreviewHint" hidden>ドラッグして、顔・ロゴ・変えたくない箇所を保護してください。</p></div>
-          <div id="thumbnailProtectedList" class="thumbnailProtectedList"></div>
+          <div id="thumbnailPreviewSurface" class="thumbnailPreviewSurface"><img id="thumbnailOriginalPreview" alt="元サムネイルのプレビュー" draggable="false" hidden><canvas id="thumbnailEditCanvas" aria-label="テロップを編集する範囲をなぞる" hidden></canvas><p id="thumbnailPreviewHint" class="thumbnailPreviewHint" hidden>テロップを修正・追加する範囲だけをブラシでなぞってください。</p></div>
+          <div id="thumbnailEditList" class="thumbnailEditList"></div>
         </section>
         <aside class="directorPanel thumbnailQualityPanel">
           <div class="panelHeader"><div><span class="sectionLabel">品質ゲート</span><h2>公開前の最終確認</h2></div></div>
@@ -349,7 +349,7 @@
         <div id="thumbnailCandidateRail" class="thumbnailCandidateRail"></div>
       </section>
       <section class="directorPanel" id="thumbnailFinalPanel">
-        <div class="panelHeader"><div><span class="sectionLabel">最終プレビュー</span><h2>元画像保護後の完成イメージ</h2></div></div>
+        <div class="panelHeader"><div><span class="sectionLabel">最終プレビュー</span><h2>ブラシ指定範囲だけを編集した完成イメージ</h2></div></div>
         <div id="thumbnailFinalPreview" class="thumbnailFinalPreview"><p class="emptyState">生成・合成後の最終サムネイルがここに表示されます。</p></div>
       </section>
     </main>

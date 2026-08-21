@@ -6,9 +6,8 @@ const { MAX_SOURCE_IMAGE_BYTES, MIN_IMAGE_PIXEL_BUDGET, dataUrlToBlob, buildImag
 const input = {
   jobId: "kawasaki-brave-thunders-wallart",
   requestedCopy: "コラボウォールアートが大きすぎ！？",
-  protectedRegions: [
-    { name: "左下の顔", type: "face", shape: "ellipse", x: 0.21, y: 0.59, w: 0.13, h: 0.18 },
-    { name: "協業ロゴ", type: "logo", x: 0.55, y: 0, w: 0.41, h: 0.19 }
+  editRegions: [
+    { brushSize: 0.14, points: [{ x: 0.1, y: 0.68 }, { x: 0.43, y: 0.61 }, { x: 0.76, y: 0.68 }] }
   ]
 };
 
@@ -19,8 +18,45 @@ test("6案を提示し、指定テロップを変えずに選択前は生成を�
   assert.ok(review.candidates.every((candidate) => candidate.recommendedCopy === input.requestedCopy));
   assert.equal(review.candidates.at(-1).name, "シンプルテロップ型");
   assert.equal(review.generation.allowed, false);
-  assert.equal(review.protection.faceStrategy, "restore_original_after_generation");
-  assert.equal(review.protection.protectedRegions[0].shape, "ellipse");
+  assert.equal(review.editing.mode, "brush_only");
+  assert.equal(review.editing.editRegions[0].brushSize, 0.14);
+});
+
+test("編集ブラシで塗った範囲だけを編集対象として候補へ引き継ぐ", () => {
+  const review = createThumbnailReview({
+    jobId: "brush-edit",
+    requestedCopy: "この部分を修正",
+    editRegions: [{
+      brushSize: 0.12,
+      points: [{ x: 0.12, y: 0.68 }, { x: 0.72, y: 0.68 }]
+    }]
+  });
+  const selected = selectThumbnailCandidate(review, "C");
+
+  assert.equal(review.editing.mode, "brush_only");
+  assert.equal(review.editing.editRegions.length, 1);
+  assert.deepEqual(selected.images2Brief.editRegions[0].points, [{ x: 0.12, y: 0.68 }, { x: 0.72, y: 0.68 }]);
+  assert.match(selected.images2Brief.instruction, /ブラシで塗った範囲だけ/);
+  assert.match(selected.compositePlan.strategy, /元画像を土台/);
+});
+
+test("編集ブラシの座標や太さが不正な場合は受け付けない", () => {
+  assert.throws(() => createThumbnailReview({
+    jobId: "invalid-brush",
+    requestedCopy: "テロップ",
+    editRegions: [{ brushSize: 1.2, points: [{ x: 0.2, y: 0.4 }] }]
+  }), /編集ブラシ 1/);
+});
+
+test("離れたブラシ範囲はテロップが欠けないよう単一領域として描き直しを求める", () => {
+  assert.throws(() => createThumbnailReview({
+    jobId: "split-brush",
+    requestedCopy: "テロップ",
+    editRegions: [
+      { brushSize: 0.08, points: [{ x: 0.1, y: 0.2 }] },
+      { brushSize: 0.08, points: [{ x: 0.8, y: 0.8 }] }
+    ]
+  }), /ひと続き/);
 });
 
 test("選択案だけをImages2.0制作ブリーフへ変換する", () => {
@@ -29,7 +65,7 @@ test("選択案だけをImages2.0制作ブリーフへ変換する", () => {
   const selected = selectThumbnailCandidate(review, "D");
   assert.equal(selected.status, "ready_for_generation");
   assert.equal(selected.selectedCandidate.name, "坂道チャンネル参考型");
-  assert.equal(selected.roles.originalComposite, "顔・ロゴ保護担当");
+  assert.equal(selected.roles.brushComposite, "編集ブラシ合成担当");
 });
 
 test("低画質比較では任意の2案または6案全体を選べる", () => {
@@ -48,11 +84,13 @@ test("顔・日本語・顔被りに問題があれば完成を止める", () =>
   assert.deepEqual(quality.fallbacks, ["restore_original_faces", "photoshop_text", "reposition_telop"]);
 });
 
-test("Images2.0への指示はテロップだけを変え、保護対象を明示する", () => {
+test("Images2.0への指示はブラシ内だけを編集対象として明示する", () => {
   const production = selectThumbnailCandidate(createThumbnailReview(input), "A");
   const prompt = buildImageEditPrompt(production);
-  assert.match(prompt, /コラボウォールアートが大きすぎ！？/);
-  assert.match(prompt, /左下の顔/);
+  assert.match(prompt, /Do not render any Japanese text/);
+  assert.doesNotMatch(prompt, /コラボウォールアートが大きすぎ！？/);
+  assert.match(prompt, /brush/);
+  assert.match(prompt, /\(0\.43, 0\.61\)/);
   assert.match(prompt, /Do not add, remove, replace, or alter faces/);
   assert.match(prompt, /one tone calmer than a flashy gaming thumbnail/);
 });

@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { ThumbnailGenerationGuard, completePersistentGeneration, generationFingerprint, releasePersistentGeneration, reservePersistentGeneration, signThumbnailReview, verifyThumbnailReview } = require("../lib/thumbnail-session");
 
-const review = { source: { requestedCopy: "新テロップ" }, protection: { protectedRegions: [] }, candidates: [{ id: "A" }] };
+const review = { source: { requestedCopy: "新テロップ" }, editing: { editRegions: [{ brushSize: 0.12, points: [{ x: 0.1, y: 0.6 }, { x: 0.8, y: 0.6 }] }] }, candidates: [{ id: "A" }] };
 
 test("サムネイル候補は署名後に改ざんできず、有効期限を過ぎると使えない", () => {
   const token = signThumbnailReview(review, "secret", 100);
@@ -19,6 +19,13 @@ test("同じ元画像と候補は24時間以内に二重生成できない", () 
   assert.throws(() => guard.reserve(fingerprint), /生成済み/);
   now += 24 * 60 * 60 * 1000 + 1;
   assert.doesNotThrow(() => guard.reserve(fingerprint));
+});
+
+test("異なる編集ブラシの生成は別のサムネイルとして扱う", () => {
+  const movedBrush = { ...review, editing: { editRegions: [{ brushSize: 0.12, points: [{ x: 0.1, y: 0.3 }, { x: 0.8, y: 0.3 }] }] } };
+  const first = generationFingerprint({ review, candidateId: "A", originalImage: "data:image/png;base64,AAAA" });
+  const second = generationFingerprint({ review: movedBrush, candidateId: "A", originalImage: "data:image/png;base64,AAAA" });
+  assert.notEqual(first, second);
 });
 
 test("生成済み識別子は永続データでも24時間重複を防ぎ、失敗時は解放できる", () => {
