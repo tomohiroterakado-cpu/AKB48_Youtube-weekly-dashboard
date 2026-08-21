@@ -89,10 +89,26 @@ test("Images2.0への指示はブラシ内だけを編集対象として明示�
   const prompt = buildImageEditPrompt(production);
   assert.match(prompt, /Do not render any Japanese text/);
   assert.doesNotMatch(prompt, /コラボウォールアートが大きすぎ！？/);
-  assert.match(prompt, /brush/);
-  assert.match(prompt, /\(0\.43, 0\.61\)/);
+  assert.match(prompt, /editable zone/);
+  assert.match(prompt, /x 0\.030–0\.830/);
   assert.match(prompt, /Do not add, remove, replace, or alter faces/);
   assert.match(prompt, /one tone calmer than a flashy gaming thumbnail/);
+});
+
+test("長いブラシ筆跡でもImages2.0のプロンプト上限を超えない", () => {
+  const points = Array.from({ length: 2400 }, (_, index) => ({
+    x: 0.08 + (index % 80) * 0.01,
+    y: 0.58 + Math.floor(index / 80) * 0.004
+  }));
+  const production = selectThumbnailCandidate(createThumbnailReview({
+    jobId: "long-brush",
+    requestedCopy: "逆再生　これを聞き取れたら天才",
+    editRegions: [{ brushSize: 0.12, points }]
+  }), "A");
+
+  const prompt = buildImageEditPrompt(production);
+  assert.ok(prompt.length <= 32000, `prompt length was ${prompt.length}`);
+  assert.match(prompt, /exact brush mask/);
 });
 
 test("画像生成APIは画面側の制限を回避した8MB超の画像を受け付けない", () => {
