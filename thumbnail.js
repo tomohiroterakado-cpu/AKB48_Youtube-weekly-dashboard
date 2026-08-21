@@ -403,16 +403,20 @@ function wrapTextForThumbnail(context, text, maxWidth) {
   return lines;
 }
 
-function textOnlyTelopLayout(context, text, width, height) {
-  const maxWidth = width * 0.88;
-  const maxFont = Math.max(14, Math.round(Math.min(width * 0.15, height * 0.58)));
-  const minFont = Math.max(12, Math.round(Math.min(width, height) * 0.13));
-  for (let size = maxFont; size >= minFont; size -= 2) {
+const MIN_TELOP_FONT_SIZE = 4;
+
+function textOnlyTelopLayouts(context, text, width, height) {
+  const maxWidth = width * 0.76;
+  const maxFont = Math.max(14, Math.round(Math.min(width * 0.13, height * 0.42)));
+  const layouts = [];
+  for (let size = maxFont; size >= MIN_TELOP_FONT_SIZE; size -= 1) {
     context.font = `900 ${size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
     const lines = wrapTextForThumbnail(context, text, maxWidth);
-    if (lines.length <= 3 && lines.length * size * 1.18 <= height * 0.9) return { size, lines };
+    const lineHeight = Math.round(size * 1.15);
+    const maxLines = Math.max(1, Math.floor(height * 0.72 / lineHeight));
+    if (lines.length <= maxLines) layouts.push({ size, lines, lineHeight });
   }
-  return null;
+  return layouts;
 }
 
 function opaquePixelCount(canvas) {
@@ -422,20 +426,62 @@ function opaquePixelCount(canvas) {
   return count;
 }
 
-function drawExactTelop(canvas, mask) {
-  const text = thumbnailState.production?.images2Brief?.requestedCopy || thumbnailState.review?.source?.requestedCopy || "";
-  const bounds = editBounds(canvas.width, canvas.height);
-  const panelLayer = document.createElement("canvas");
-  panelLayer.width = canvas.width;
-  panelLayer.height = canvas.height;
-  const panelContext = panelLayer.getContext("2d");
+function drawTelopTextLayer(canvas, bounds, layout) {
   const textLayer = document.createElement("canvas");
   textLayer.width = canvas.width;
   textLayer.height = canvas.height;
   const context = textLayer.getContext("2d");
-  const layout = textOnlyTelopLayout(context, text, bounds.width, bounds.height);
-  if (!layout) throw new Error("指定テロップがブラシ範囲に収まりません。ブラシ範囲を広げるか、テロップを短くしてからもう一度6案を設計してください。");
-  const lineHeight = Math.round(layout.size * 1.15);
+  context.font = `900 ${layout.size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.lineJoin = "round";
+  context.lineWidth = Math.max(1, Math.round(layout.size * 0.075));
+  context.strokeStyle = "rgba(25, 12, 17, 0.94)";
+  context.fillStyle = "#fffaf2";
+  context.shadowColor = "rgba(0, 0, 0, 0.55)";
+  context.shadowBlur = Math.max(1, Math.round(layout.size * 0.12));
+  const textCenterY = bounds.y + bounds.height / 2;
+  layout.lines.forEach((line, index) => {
+    const y = textCenterY + (index - (layout.lines.length - 1) / 2) * layout.lineHeight;
+    context.strokeText(line, bounds.x + bounds.width / 2, y);
+    context.fillText(line, bounds.x + bounds.width / 2, y);
+  });
+  context.restore();
+  return textLayer;
+}
+
+function maskTextLayer(textLayer, mask) {
+  const maskedLayer = document.createElement("canvas");
+  maskedLayer.width = textLayer.width;
+  maskedLayer.height = textLayer.height;
+  const context = maskedLayer.getContext("2d");
+  context.drawImage(textLayer, 0, 0);
+  context.globalCompositeOperation = "destination-in";
+  context.drawImage(mask, 0, 0);
+  return maskedLayer;
+}
+
+function findFittingTelopLayer(canvas, mask, text, bounds) {
+  const measurementContext = canvas.getContext("2d");
+  for (const layout of textOnlyTelopLayouts(measurementContext, text, bounds.width, bounds.height)) {
+    const textLayer = drawTelopTextLayer(canvas, bounds, layout);
+    const textPixels = opaquePixelCount(textLayer);
+    const maskedLayer = maskTextLayer(textLayer, mask);
+    const maskedPixels = opaquePixelCount(maskedLayer);
+    if (textPixels && maskedPixels === textPixels) return { layout, textLayer: maskedLayer };
+  }
+  return null;
+}
+
+function drawExactTelop(canvas, mask) {
+  const text = thumbnailState.production?.images2Brief?.requestedCopy || thumbnailState.review?.source?.requestedCopy || "";
+  const bounds = editBounds(canvas.width, canvas.height);
+  const fitted = findFittingTelopLayer(canvas, mask, text, bounds);
+  if (!fitted) throw new Error("指定テロップをブラシ内へ配置できませんでした。極端に小さい範囲だけは、文字が読める大きさを保つため範囲を広げてください。");
+  const panelLayer = document.createElement("canvas");
+  panelLayer.width = canvas.width;
+  panelLayer.height = canvas.height;
+  const panelContext = panelLayer.getContext("2d");
   panelContext.save();
   const panelGradient = panelContext.createLinearGradient(bounds.x, bounds.y, bounds.x, bounds.y + bounds.height);
   panelGradient.addColorStop(0, "rgba(46, 20, 31, 0.36)");
@@ -443,30 +489,10 @@ function drawExactTelop(canvas, mask) {
   panelContext.fillStyle = panelGradient;
   panelContext.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
   panelContext.restore();
-  context.font = `900 ${layout.size}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.lineJoin = "round";
-  context.lineWidth = Math.max(2, Math.round(layout.size * 0.075));
-  context.strokeStyle = "rgba(25, 12, 17, 0.94)";
-  context.fillStyle = "#fffaf2";
-  context.shadowColor = "rgba(0, 0, 0, 0.55)";
-  context.shadowBlur = Math.max(3, Math.round(layout.size * 0.12));
-  const textCenterY = bounds.y + bounds.height / 2;
-  layout.lines.forEach((line, index) => {
-    const y = textCenterY + (index - (layout.lines.length - 1) / 2) * lineHeight;
-    context.strokeText(line, bounds.x + bounds.width / 2, y);
-    context.fillText(line, bounds.x + bounds.width / 2, y);
-  });
-  context.restore();
-  const textPixels = opaquePixelCount(textLayer);
-  textLayer.getContext("2d").globalCompositeOperation = "destination-in";
-  textLayer.getContext("2d").drawImage(mask, 0, 0);
-  if (opaquePixelCount(textLayer) < textPixels) throw new Error("指定テロップがブラシ範囲に収まりません。範囲を文字の周囲まで広げ、ひと続きに塗ってからもう一度6案を設計してください。");
   panelContext.globalCompositeOperation = "destination-in";
   panelContext.drawImage(mask, 0, 0);
   canvas.getContext("2d").drawImage(panelLayer, 0, 0);
-  canvas.getContext("2d").drawImage(textLayer, 0, 0);
+  canvas.getContext("2d").drawImage(fitted.textLayer, 0, 0);
 }
 
 async function compositeEditedRegions(generatedImageDataUrl) {

@@ -29,9 +29,10 @@ test("thumbnail route exposes the complete Images2.0 production workflow", () =>
   assert.match(thumbnail, /ブラシでなぞった範囲だけを編集/);
   assert.match(thumbnail, /サムネイルは16:9の画像を選択してください/);
   assert.match(thumbnail, /thumbnailState\.production\?\.images2Brief\?\.requestedCopy/);
-  assert.match(thumbnail, /指定テロップがブラシ範囲に収まりません/);
+  assert.match(thumbnail, /findFittingTelopLayer/);
+  assert.match(thumbnail, /MIN_TELOP_FONT_SIZE = 4/);
   assert.match(thumbnail, /opaquePixelCount/);
-  assert.match(thumbnail, /opaquePixelCount\(textLayer\) < textPixels/);
+  assert.match(thumbnail, /maskedPixels === textPixels/);
   assert.doesNotMatch(thumbnail, /compositeProtectedRegions/);
   assert.doesNotMatch(index, /保護領域/);
   assert.match(thumbnail, /renderThumbnailSafetyFallbackOption/);
